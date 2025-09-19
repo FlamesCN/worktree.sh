@@ -1,0 +1,1757 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="0.1.0"
+CONFIG_FILE="${WT_CONFIG_FILE:-$HOME/.wt-cli}"
+DEFAULT_PROJECT_DIR_DEFAULT="${HOME}/Developer/franxx.store"
+LOG_SUBDIR_DEFAULT="tmp"
+AUTO_START_DEV_DEFAULT=1
+ADD_INSTALL_DEPS_DEFAULT=1
+ADD_COPY_ENV_DEFAULT=1
+DEFAULT_PROJECT_DIR="$DEFAULT_PROJECT_DIR_DEFAULT"
+WORKTREE_PREFIX_DEFAULT="$(basename "$DEFAULT_PROJECT_DIR_DEFAULT")."
+WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
+BRANCH_PREFIX="${WT_BRANCH_PREFIX:-feat/}"
+LOG_SUBDIR="$LOG_SUBDIR_DEFAULT"
+NPM_BIN="${WT_NPM_BIN:-npm}"
+AUTO_START_DEV="$AUTO_START_DEV_DEFAULT"
+ADD_INSTALL_DEPS="$ADD_INSTALL_DEPS_DEFAULT"
+ADD_COPY_ENV="$ADD_COPY_ENV_DEFAULT"
+LANGUAGE_DEFAULT="zh"
+LANGUAGE="$LANGUAGE_DEFAULT"
+
+normalize_language() {
+  if [ $# -ne 1 ]; then
+    return 1
+  fi
+
+  local raw
+  raw=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  raw=${raw%%.*}
+  raw=${raw//-/_}
+
+  case "$raw" in
+    zh|zh_cn|zh_hans|zh_hant|zh_tw|cn|chinese|中文)
+      printf 'zh\n'
+      return 0
+      ;;
+    en|en_us|en_gb|english|英语)
+      printf 'en\n'
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+language_code_to_config_value() {
+  case "${1:-}" in
+    zh)
+      printf 'chinese\n'
+      ;;
+    en)
+      printf 'english\n'
+      ;;
+    *)
+      printf '%s\n' "${1:-}"
+      ;;
+  esac
+}
+
+init_language() {
+  LANGUAGE="$LANGUAGE_DEFAULT"
+
+  local value normalized
+  if value=$(config_get "core.language" 2>/dev/null); then
+    if normalized=$(normalize_language "$value" 2>/dev/null); then
+      LANGUAGE="$normalized"
+    fi
+  fi
+
+  for env_var in WT_LANGUAGE WT_LANG LANG; do
+    value="${!env_var:-}"
+    if [ -n "$value" ]; then
+      if normalized=$(normalize_language "$value" 2>/dev/null); then
+        LANGUAGE="$normalized"
+        break
+      fi
+    fi
+  done
+}
+
+msg() {
+  local key
+  key="${1:-}"
+  shift || true
+  case "$LANGUAGE" in
+    zh)
+      msg_zh "$key" "$@"
+      ;;
+    *)
+      msg_en "$key" "$@"
+      ;;
+  esac
+}
+
+msg_en() {
+  local key="${1:-}"
+  shift || true
+  case "$key" in
+    copy_env_file)
+      printf '📄 Copy %s' "$1"
+      ;;
+    npm_missing_dev)
+      printf '⚠️  npm not found; skipping dev server'
+      ;;
+    start_dev_port)
+      printf '🚀 Starting dev server (port %s)' "$1"
+      ;;
+    start_dev_default)
+      printf '🚀 Starting dev server (default port 3000)'
+      ;;
+    dev_started_port)
+      printf '✅ Dev server started on port %s' "$1"
+      ;;
+    dev_started_default)
+      printf '✅ Dev server started on default port 3000'
+      ;;
+    dev_failed)
+      printf '⚠️ Dev server process may not have started correctly (PID: %s); check %s' "$1" "$2"
+      ;;
+    dev_log_hint)
+      printf '📝 Dev server log: tail -f %s' "$1"
+      ;;
+    auto_cd_pending)
+      printf '💡 wt auto-cd appears inactive. Try running: %s' "$1"
+      ;;
+    auto_cd_retry)
+      printf '   If that command fails, reopen your terminal.'
+      ;;
+    auto_cd_disabled)
+      printf '💡 wt auto-cd is not enabled. To jump automatically, run: %s' "$1"
+      ;;
+    auto_cd_reload)
+      printf '   Then reload your shell (e.g. open a new terminal).'
+      ;;
+    auto_cd_execute)
+      printf '   Then run: %s (or reopen the terminal).' "$1"
+      ;;
+    reserved_port)
+      printf '⚠️  %s is a reserved port (1-1023); the dev server will not use it.' "$1"
+      ;;
+    port_out_of_range)
+      printf '⚠️  %s is outside the valid port range (65535); falling back to default port.' "$1"
+      ;;
+    fallback_default_port)
+      printf '⚠️  Using default port 3000 for the dev server.'
+      ;;
+    creating_worktree)
+      printf '🔧 Creating worktree: %s (branch %s)' "$1" "$2"
+      ;;
+    worktree_created)
+      printf '✅ Worktree created'
+      ;;
+    installing_dependencies)
+      printf '📦 Installing dependencies (npm ci)'
+      ;;
+    npm_missing_install)
+      printf '⚠️  npm not found; skipping dependency installation'
+      ;;
+    dev_skipped_config)
+      printf '⚙️  Dev server skipped per configuration'
+      ;;
+    worktree_ready)
+      printf '✅ Worktree ready: %s' "$1"
+      ;;
+    init_set_project)
+      printf '✅ Set core.default_project_dir = %s' "$1"
+      ;;
+    init_set_branch)
+      printf '✅ Set core.default_branch = %s' "$1"
+      ;;
+    init_done)
+      printf '🎉 wt init complete; future commands will use these defaults'
+      ;;
+    aborted)
+      printf 'Aborted'
+      ;;
+    removing_worktree)
+      printf '🗑️  Removing worktree: %s' "$1"
+      ;;
+    removed_branch)
+      printf '🗂️  Deleted branch %s' "$1"
+      ;;
+    worktree_removed)
+      printf '✅ Removed worktree %s' "$1"
+      ;;
+    current_worktree_removed)
+      printf '📁 Current worktree removed; switching back to the main directory'
+      ;;
+    cleaning_worktree)
+      printf '🧹 Cleaning worktree: %s' "$1"
+      ;;
+    cleaned_count)
+      printf '✅ Cleaned %s worktree(s)' "$1"
+      ;;
+    cleaned_none)
+      printf '✅ No numeric worktrees to clean'
+      ;;
+    clean_switch_back)
+      printf '📁 Current worktree was cleaned; switching back to the main directory'
+      ;;
+    remove_confirm_prompt)
+      printf 'Remove worktree %s? [Y/n]' "$1"
+      ;;
+    config_set_requires)
+      printf 'config set requires <key> <value>'
+      ;;
+    temp_file_failed)
+      printf 'failed to allocate temp file'
+      ;;
+    config_unset_requires)
+      printf 'config unset requires <key>'
+      ;;
+    config_file_missing)
+      printf 'config file not found: %s' "$1"
+      ;;
+    config_key_not_set)
+      printf 'config key not set: %s' "$1"
+      ;;
+    config_update_failed)
+      printf 'failed to update config'
+      ;;
+    git_required)
+      printf 'git is required'
+      ;;
+    project_not_found)
+      printf 'project directory not found: %s' "$1"
+      ;;
+    list_no_args)
+      printf 'list takes no arguments'
+      ;;
+    main_no_args)
+      printf 'main takes no arguments'
+      ;;
+    path_requires_name)
+      printf 'path requires exactly one worktree name'
+      ;;
+    worktree_not_found)
+      printf 'worktree not found: %s' "$1"
+      ;;
+    add_requires_name)
+      printf 'add requires a worktree name'
+      ;;
+    add_unknown_option)
+      printf 'unknown option for add: %s' "$1"
+      ;;
+    unexpected_extra_argument)
+      printf 'unexpected extra argument: %s' "$1"
+      ;;
+    port_requires_numeric)
+      printf 'port requires a numeric value between 1024 and 65535'
+      ;;
+    worktree_exists)
+      printf 'worktree path already exists: %s' "$1"
+      ;;
+    config_list_no_args)
+      printf 'config list takes no additional arguments'
+      ;;
+    config_get_requires_key)
+      printf 'config get requires a key'
+      ;;
+    config_get_requires_exactly_one)
+      printf 'config get requires exactly one key'
+      ;;
+    config_key_not_found)
+      printf 'config key not found: %s' "$1"
+      ;;
+    config_unset_requires_key)
+      printf 'config unset requires a key'
+      ;;
+    config_unset_requires_exactly_one)
+      printf 'config unset requires exactly one key'
+      ;;
+    config_unknown_option)
+      printf 'unknown config option: %s' "$1"
+      ;;
+    config_expect_key_or_value)
+      printf 'config expects <key> or <key> <value>'
+      ;;
+    shell_hook_requires_shell)
+      printf 'shell-hook requires a shell (bash or zsh)'
+      ;;
+    shell_hook_unsupported_shell)
+      printf 'unsupported shell for shell-hook: %s (supported: bash, zsh)' "$1"
+      ;;
+    branch_requires_value)
+      printf 'branch requires a value'
+      ;;
+    init_unknown_option)
+      printf 'unknown option for init: %s' "$1"
+      ;;
+    init_no_positional)
+      printf 'init takes no positional arguments'
+      ;;
+    init_run_inside_git)
+      printf 'run wt init inside a git repository'
+      ;;
+    remove_unknown_option)
+      printf 'unknown option for remove: %s' "$1"
+      ;;
+    remove_accepts_at_most_one)
+      printf 'remove accepts at most one worktree name'
+      ;;
+    cannot_remove_main)
+      printf 'cannot remove the main worktree'
+      ;;
+    specify_worktree_or_inside)
+      printf 'specify a worktree name or run from inside a worktree'
+      ;;
+    remove_failed)
+      printf 'failed to remove worktree'
+      ;;
+    clean_no_args)
+      printf 'clean takes no arguments'
+      ;;
+    invalid_language)
+      printf 'unsupported language: %s (supported: english, chinese)' "$1"
+      ;;
+    *)
+      printf '%s' "$key"
+      ;;
+  esac
+}
+
+msg_zh() {
+  local key="${1:-}"
+  shift || true
+  case "$key" in
+    copy_env_file)
+      printf '📄 复制 %s' "$1"
+      ;;
+    npm_missing_dev)
+      printf '⚠️  未找到 npm，跳过 dev server'
+      ;;
+    start_dev_port)
+      printf '🚀 正在启动 dev server（端口 %s）' "$1"
+      ;;
+    start_dev_default)
+      printf '🚀 正在启动 dev server（默认端口 3000）'
+      ;;
+    dev_started_port)
+      printf '✅ Dev server 已在端口 %s 启动' "$1"
+      ;;
+    dev_started_default)
+      printf '✅ Dev server 已在默认端口 3000 启动'
+      ;;
+    dev_failed)
+      printf '⚠️ Dev server 进程可能未正确启动 (PID: %s)，请检查 %s' "$1" "$2"
+      ;;
+    dev_log_hint)
+      printf '📝 Dev server 日志：tail -f %s' "$1"
+      ;;
+    auto_cd_pending)
+      printf '💡 检测到 wt 自动切换目录尚未生效。尝试运行：%s' "$1"
+      ;;
+    auto_cd_retry)
+      printf '   如果命令无效，请重新打开一个终端。'
+      ;;
+    auto_cd_disabled)
+      printf '💡 检测到 wt 自动切换目录未启用。若希望直接跳转，可运行：%s' "$1"
+      ;;
+    auto_cd_reload)
+      printf '   然后重新加载当前 shell（例如重新打开一个终端）。'
+      ;;
+    auto_cd_execute)
+      printf '   然后执行：%s（或重新打开终端）。' "$1"
+      ;;
+    reserved_port)
+      printf '⚠️  %s 是保留端口 (1-1023)，不会用于 dev server' "$1"
+      ;;
+    port_out_of_range)
+      printf '⚠️  %s 超出有效端口范围 (65535)，将使用默认端口' "$1"
+      ;;
+    fallback_default_port)
+      printf '⚠️  将使用默认端口 3000 启动 dev server'
+      ;;
+    creating_worktree)
+      printf '🔧 创建 worktree: %s (分支 %s)' "$1" "$2"
+      ;;
+    worktree_created)
+      printf '✅ worktree 创建完成'
+      ;;
+    installing_dependencies)
+      printf '📦 安装依赖 (npm ci)'
+      ;;
+    npm_missing_install)
+      printf '⚠️  未找到 npm，跳过依赖安装'
+      ;;
+    dev_skipped_config)
+      printf '⚙️  根据配置已跳过 dev server'
+      ;;
+    worktree_ready)
+      printf '✅ 新 worktree 就绪: %s' "$1"
+      ;;
+    init_set_project)
+      printf '✅ 已设置 core.default_project_dir = %s' "$1"
+      ;;
+    init_set_branch)
+      printf '✅ 已设置 core.default_branch = %s' "$1"
+      ;;
+    init_done)
+      printf '🎉 wt init 完成，后续命令将默认使用以上配置'
+      ;;
+    aborted)
+      printf '已取消'
+      ;;
+    removing_worktree)
+      printf '🗑️  删除 worktree: %s' "$1"
+      ;;
+    removed_branch)
+      printf '🗂️  已删除分支 %s' "$1"
+      ;;
+    worktree_removed)
+      printf '✅ 已移除 worktree %s' "$1"
+      ;;
+    current_worktree_removed)
+      printf '📁 当前 worktree 已移除，切换回主目录'
+      ;;
+    cleaning_worktree)
+      printf '🧹 清理 worktree: %s' "$1"
+      ;;
+    cleaned_count)
+      printf '✅ 已清理 %s 个 worktree' "$1"
+      ;;
+    cleaned_none)
+      printf '✅ 没有可清理的数字 worktree'
+      ;;
+    clean_switch_back)
+      printf '📁 当前 worktree 已被清理，切换回主目录'
+      ;;
+    remove_confirm_prompt)
+      printf '确认删除 worktree %s? [Y/n]' "$1"
+      ;;
+    config_set_requires)
+      printf 'config set 需要提供 <key> <value>'
+      ;;
+    temp_file_failed)
+      printf '无法创建临时文件'
+      ;;
+    config_unset_requires)
+      printf 'config unset 需要提供 <key>'
+      ;;
+    config_file_missing)
+      printf '未找到配置文件: %s' "$1"
+      ;;
+    config_key_not_set)
+      printf '配置项未设置: %s' "$1"
+      ;;
+    config_update_failed)
+      printf '更新配置失败'
+      ;;
+    git_required)
+      printf '需要 git'
+      ;;
+    project_not_found)
+      printf '未找到项目目录: %s' "$1"
+      ;;
+    list_no_args)
+      printf 'list 不接受参数'
+      ;;
+    main_no_args)
+      printf 'main 不接受参数'
+      ;;
+    path_requires_name)
+      printf 'path 需要且仅需要一个 worktree 名称'
+      ;;
+    worktree_not_found)
+      printf '未找到 worktree: %s' "$1"
+      ;;
+    add_requires_name)
+      printf 'add 需要指定 worktree 名称'
+      ;;
+    add_unknown_option)
+      printf 'add 的未知选项: %s' "$1"
+      ;;
+    unexpected_extra_argument)
+      printf '出现未预期的额外参数: %s' "$1"
+      ;;
+    port_requires_numeric)
+      printf 'port 需要 1024-65535 之间的数值'
+      ;;
+    worktree_exists)
+      printf 'worktree 路径已存在: %s' "$1"
+      ;;
+    config_list_no_args)
+      printf 'config list 不接受额外参数'
+      ;;
+    config_get_requires_key)
+      printf 'config get 需要提供 key'
+      ;;
+    config_get_requires_exactly_one)
+      printf 'config get 需要且仅需要一个 key'
+      ;;
+    config_key_not_found)
+      printf '未找到配置项: %s' "$1"
+      ;;
+    config_unset_requires_key)
+      printf 'config unset 需要提供 key'
+      ;;
+    config_unset_requires_exactly_one)
+      printf 'config unset 需要且仅需要一个 key'
+      ;;
+    config_unknown_option)
+      printf '未知的 config 选项: %s' "$1"
+      ;;
+    config_expect_key_or_value)
+      printf 'config 需要 <key> 或 <key> <value>'
+      ;;
+    shell_hook_requires_shell)
+      printf 'shell-hook 需要指定 shell（bash 或 zsh）'
+      ;;
+    shell_hook_unsupported_shell)
+      printf 'shell-hook 不支持的 shell: %s（仅支持 bash、zsh）' "$1"
+      ;;
+    branch_requires_value)
+      printf 'branch 需要指定值'
+      ;;
+    init_unknown_option)
+      printf 'init 的未知选项: %s' "$1"
+      ;;
+    init_no_positional)
+      printf 'init 不接受位置参数'
+      ;;
+    init_run_inside_git)
+      printf '请在 git 仓库中运行 wt init'
+      ;;
+    remove_unknown_option)
+      printf 'remove 的未知选项: %s' "$1"
+      ;;
+    remove_accepts_at_most_one)
+      printf 'remove 最多只接受一个 worktree 名称'
+      ;;
+    cannot_remove_main)
+      printf '不能移除主 worktree'
+      ;;
+    specify_worktree_or_inside)
+      printf '指定 worktree 名称或在 worktree 目录中运行'
+      ;;
+    remove_failed)
+      printf '移除 worktree 失败'
+      ;;
+    clean_no_args)
+      printf 'clean 不接受参数'
+      ;;
+    invalid_language)
+      printf '不支持的语言: %s（支持 english、chinese）' "$1"
+      ;;
+    *)
+      printf '%s' "$key"
+      ;;
+  esac
+}
+
+
+toml_escape_string() {
+  local input="$1"
+  local escaped="${input//\\/\\\\}"
+  escaped="${escaped//\"/\\\"}"
+  printf '%s' "$escaped"
+}
+
+toml_unescape_string() {
+  local input="$1"
+  printf '%b' "$input"
+}
+
+parse_bool() {
+  if [ $# -ne 1 ]; then
+    return 1
+  fi
+  local lower
+  lower=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  case "$lower" in
+    1|true|yes|on)
+      printf '1\n'
+      ;;
+    0|false|no|off)
+      printf '0\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+config_get() {
+  local key="$1"
+  [ -f "$CONFIG_FILE" ] || return 1
+  local result
+  result=$(awk -v key="$key" '
+    function trim(s) { sub(/^[ \t\r\n]*/, "", s); sub(/[ \t\r\n]*$/, "", s); return s }
+    BEGIN { found = 0 }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    {
+      pos = index($0, "=")
+      if (pos == 0) { next }
+      left = trim(substr($0, 1, pos - 1))
+      if (left != key) { next }
+      right = trim(substr($0, pos + 1))
+      sub(/[[:space:]]*#.*/, "", right)
+      if (right ~ /^"/) {
+        right = substr(right, 2)
+        sub(/"$/, "", right)
+        printf "%s\t%s\n", "string", right
+      } else {
+        printf "%s\t%s\n", "bare", right
+      }
+      found = 1
+      exit
+    }
+    END {
+      if (!found) {
+        exit 1
+      }
+    }
+  ' "$CONFIG_FILE") || return 1
+
+  local type value
+  IFS=$'\t' read -r type value <<<"$result"
+
+  if [ "$type" = "string" ]; then
+    value=$(toml_unescape_string "$value")
+  fi
+
+  printf '%s\n' "$value"
+}
+
+config_set() {
+  if [ $# -ne 2 ]; then
+    die "$(msg config_set_requires)"
+  fi
+  local key="$1"
+  local value="$2"
+  local lower
+  lower=$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')
+  local newline
+  case "$lower" in
+    true|false)
+      newline="$key = $lower"
+      ;;
+    *)
+      local escaped
+      escaped=$(toml_escape_string "$value")
+      newline="$key = \"$escaped\""
+      ;;
+  esac
+
+  local tmp
+  tmp=$(mktemp "wt-config.XXXXXX") || die "$(msg temp_file_failed)"
+
+  if [ -f "$CONFIG_FILE" ]; then
+    awk -v key="$key" -v newline="$newline" '
+      BEGIN { printed = 0 }
+      function trim(s) { sub(/^[ \t\r\n]*/, "", s); sub(/[ \t\r\n]*$/, "", s); return s }
+      {
+        if ($0 ~ /^[[:space:]]*#/) { print; next }
+        if ($0 ~ /^[[:space:]]*$/) { print; next }
+        pos = index($0, "=")
+        if (pos == 0) { print; next }
+        left = trim(substr($0, 1, pos - 1))
+        if (left == key) {
+          if (!printed) {
+            print newline
+            printed = 1
+          }
+          next
+        }
+        print
+      }
+      END {
+        if (!printed) {
+          print newline
+        }
+      }
+    ' "$CONFIG_FILE" > "$tmp"
+  else
+    printf '%s\n' "$newline" > "$tmp"
+  fi
+
+  mv "$tmp" "$CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE" 2>/dev/null || true
+}
+
+config_unset() {
+  if [ $# -ne 1 ]; then
+    die "$(msg config_unset_requires)"
+  fi
+  [ -f "$CONFIG_FILE" ] || die "$(msg config_file_missing "$CONFIG_FILE")"
+
+  local key="$1"
+  local tmp
+  tmp=$(mktemp "wt-config.XXXXXX") || die "$(msg temp_file_failed)"
+
+  awk -v key="$key" '
+    BEGIN { removed = 0 }
+    function trim(s) { sub(/^[ \t\r\n]*/, "", s); sub(/[ \t\r\n]*$/, "", s); return s }
+    {
+      if ($0 ~ /^[[:space:]]*$/) { print; next }
+      if ($0 ~ /^[[:space:]]*#/) { print; next }
+      pos = index($0, "=")
+      if (pos == 0) { print; next }
+      left = trim(substr($0, 1, pos - 1))
+      if (left == key) {
+        removed = 1
+        next
+      }
+      print
+    }
+    END {
+      if (!removed) {
+        exit 2
+      }
+    }
+  ' "$CONFIG_FILE" > "$tmp"
+  local status=$?
+  if [ $status -eq 0 ]; then
+    mv "$tmp" "$CONFIG_FILE"
+    chmod 600 "$CONFIG_FILE" 2>/dev/null || true
+  else
+    rm -f "$tmp"
+    if [ $status -eq 2 ]; then
+      die "$(msg config_key_not_set "$key")"
+    fi
+    die "$(msg config_update_failed)"
+  fi
+}
+
+config_iterate_file() {
+  [ -f "$CONFIG_FILE" ] || return 0
+  awk '
+    function trim(s) { sub(/^[ \t\r\n]*/, "", s); sub(/[ \t\r\n]*$/, "", s); return s }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    {
+      pos = index($0, "=")
+      if (pos == 0) { next }
+      left = trim(substr($0, 1, pos - 1))
+      right = trim(substr($0, pos + 1))
+      sub(/[[:space:]]*#.*/, "", right)
+      if (right ~ /^"/) {
+        right = substr(right, 2)
+        sub(/"$/, "", right)
+        printf "%s\tstring\t%s\n", left, right
+      } else {
+        printf "%s\tbare\t%s\n", left, right
+      }
+    }
+  ' "$CONFIG_FILE"
+}
+
+init_settings() {
+  DEFAULT_PROJECT_DIR="$DEFAULT_PROJECT_DIR_DEFAULT"
+  LOG_SUBDIR="$LOG_SUBDIR_DEFAULT"
+  AUTO_START_DEV="$AUTO_START_DEV_DEFAULT"
+  ADD_INSTALL_DEPS="$ADD_INSTALL_DEPS_DEFAULT"
+  ADD_COPY_ENV="$ADD_COPY_ENV_DEFAULT"
+  WORKTREE_PREFIX_DEFAULT="$(basename "$DEFAULT_PROJECT_DIR")."
+  WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
+
+  local value
+  if value=$(config_get "core.default_project_dir" 2>/dev/null); then
+    if [ -n "$value" ]; then
+      DEFAULT_PROJECT_DIR="$value"
+      WORKTREE_PREFIX_DEFAULT="$(basename "$DEFAULT_PROJECT_DIR")."
+      WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
+    fi
+  fi
+
+  if value=$(config_get "logging.subdir" 2>/dev/null); then
+    if [ -n "$value" ]; then
+      LOG_SUBDIR="$value"
+    fi
+  fi
+
+  if value=$(config_get "add.auto_start_dev" 2>/dev/null); then
+    if bool=$(parse_bool "$value" 2>/dev/null); then
+      AUTO_START_DEV="$bool"
+    fi
+  fi
+
+  if value=$(config_get "add.install_dependencies" 2>/dev/null); then
+    if bool=$(parse_bool "$value" 2>/dev/null); then
+      ADD_INSTALL_DEPS="$bool"
+    fi
+  fi
+
+  if value=$(config_get "add.copy_env_files" 2>/dev/null); then
+    if bool=$(parse_bool "$value" 2>/dev/null); then
+      ADD_COPY_ENV="$bool"
+    fi
+  fi
+
+  if [ -n "${WT_LOG_SUBDIR:-}" ]; then
+    LOG_SUBDIR="$WT_LOG_SUBDIR"
+  fi
+
+  if [ -n "${WT_ADD_AUTO_START_DEV:-}" ]; then
+    if bool=$(parse_bool "$WT_ADD_AUTO_START_DEV" 2>/dev/null); then
+      AUTO_START_DEV="$bool"
+    fi
+  fi
+
+  if [ -n "${WT_ADD_INSTALL_DEPS:-}" ]; then
+    if bool=$(parse_bool "$WT_ADD_INSTALL_DEPS" 2>/dev/null); then
+      ADD_INSTALL_DEPS="$bool"
+    fi
+  fi
+
+  if [ -n "${WT_ADD_COPY_ENV:-}" ]; then
+    if bool=$(parse_bool "$WT_ADD_COPY_ENV" 2>/dev/null); then
+      ADD_COPY_ENV="$bool"
+    fi
+  fi
+
+  if [ -z "${WT_WORKTREE_PREFIX:-}" ]; then
+    WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
+  fi
+
+  init_language
+}
+
+info() {
+  printf '%s\n' "$*" >&2
+}
+
+die() {
+  printf 'wt: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  local project_basename
+  project_basename=$(basename "$DEFAULT_PROJECT_DIR")
+
+  local project_dir_display="$DEFAULT_PROJECT_DIR"
+  if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
+    local ansi_cyan ansi_bold ansi_reset
+    ansi_cyan=$(tput setaf 6 2>/dev/null || true)
+    ansi_bold=$(tput bold 2>/dev/null || true)
+    ansi_reset=$(tput sgr0 2>/dev/null || true)
+    if [ -n "$ansi_cyan$ansi_bold" ]; then
+      project_dir_display="${ansi_bold}${ansi_cyan}${DEFAULT_PROJECT_DIR}${ansi_reset}"
+    fi
+  fi
+
+  case "$LANGUAGE" in
+    zh)
+      cat <<USAGE_ZH
+wt - ${project_basename} worktree 助手
+
+跟踪的项目目录: $project_dir_display
+
+用法:
+  wt <command> [args]
+  wt <worktree-name>
+
+命令:
+  help               显示此帮助（无参数时的默认命令）
+  list               列出所有 worktree（无参数时的默认命令）
+  add <name>         创建新 worktree，复制环境文件、安装依赖并启动 dev server（行为可通过 wt config 配置）
+  rm [name]          删除 worktree（别名: remove；省略 name 时使用当前目录）
+  clean              清理数字 worktree（匹配前缀 + 数字）
+  main               输出主 worktree 的路径
+  path <name>        输出指定 worktree 的路径
+  config             查看或更新 wt-cli 配置
+  init [--branch <name>] 将当前仓库默认值写入 ~/.wt-cli
+  shell-hook <shell> 输出 shell 集成片段 (bash|zsh)
+
+示例:
+  wt list
+  wt add 12345
+  wt init
+  wt shell-hook zsh
+  wt 3000
+  wt rm 12345 --yes
+USAGE_ZH
+      ;;
+    *)
+      cat <<USAGE_EN
+wt - ${project_basename} worktree helper
+
+Tracked project directory: $project_dir_display
+
+Usage:
+  wt <command> [args]
+  wt <worktree-name>
+
+Commands:
+  help               Show this help message (default when no command is provided)
+  list               List worktrees (default when no command is provided)
+  add <name>         Create a new worktree, copy env files, install deps, start dev server (configurable via wt config)
+  rm [name]          Remove a worktree (alias: remove; current directory if name omitted)
+  clean              Remove numeric worktrees (matching prefix + digits)
+  main               Print the path of the main worktree
+  path <name>        Print the path to a worktree
+  config             Inspect or update wt-cli configuration
+  init [--branch <name>] Capture current repo defaults into ~/.wt-cli
+  shell-hook <shell> Print shell integration snippet (bash|zsh)
+
+Examples:
+  wt list
+  wt add 12345
+  wt init
+  wt shell-hook zsh
+  wt 3000
+  wt rm 12345 --yes
+USAGE_EN
+      ;;
+  esac
+}
+
+usage_exit() {
+  local status="${1:-0}"
+  usage
+  exit "$status"
+}
+
+PROJECT_DIR=""
+PROJECT_DIR_ABS=""
+PROJECT_PARENT=""
+
+resolve_project() {
+  command -v git >/dev/null 2>&1 || die "$(msg git_required)"
+
+  if [ -z "$PROJECT_DIR" ]; then
+    PROJECT_DIR="${WT_PROJECT_DIR:-$DEFAULT_PROJECT_DIR}"
+  fi
+
+  PROJECT_DIR_ABS=$(cd "$PROJECT_DIR" 2>/dev/null && pwd) || die "$(msg project_not_found "$PROJECT_DIR")"
+  PROJECT_PARENT=$(dirname "$PROJECT_DIR_ABS")
+}
+
+worktree_path_for() {
+  local name="$1"
+  printf '%s/%s%s\n' "$PROJECT_PARENT" "$WORKTREE_PREFIX" "$name"
+}
+
+branch_for() {
+  local name="$1"
+  printf '%s%s\n' "$BRANCH_PREFIX" "$name"
+}
+
+port_from_name() {
+  local name="$1"
+  if [[ "$name" =~ ^[0-9]+$ ]]; then
+    if [ "$name" -ge 1024 ] && [ "$name" -le 65535 ]; then
+      printf '%s\n' "$name"
+      return 0
+    fi
+  fi
+  printf ''
+}
+
+git_project() {
+  git -C "$PROJECT_DIR_ABS" "$@"
+}
+
+copy_env_file() {
+  local file_name="$1"
+  local target_dir="$2"
+  if [ -f "$PROJECT_DIR_ABS/$file_name" ]; then
+    cp "$PROJECT_DIR_ABS/$file_name" "$target_dir/"
+    info "$(msg copy_env_file "$file_name")"
+  fi
+}
+
+start_dev_server() {
+  local worktree_path="${1:?worktree path is required}"
+  local port=""
+
+  if [ $# -ge 2 ]; then
+    port="$2"
+  fi
+
+  if ! command -v "$NPM_BIN" >/dev/null 2>&1; then
+    info "$(msg npm_missing_dev)"
+    return
+  fi
+
+  mkdir -p "$worktree_path/$LOG_SUBDIR"
+  local effective_port="$port"
+  local log_file
+  local pid_file
+
+  if [ -n "$effective_port" ]; then
+    log_file="$worktree_path/$LOG_SUBDIR/npm-run-dev-${effective_port}.log"
+    pid_file="$log_file.pid"
+    info "$(msg start_dev_port "$effective_port")"
+    (
+      cd "$worktree_path"
+      nohup env PORT="$effective_port" "$NPM_BIN" run dev > "$log_file" 2>&1 &
+      printf '%s\n' "$!" > "$pid_file"
+    )
+  else
+    log_file="$worktree_path/$LOG_SUBDIR/npm-run-dev-3000.log"
+    pid_file="$log_file.pid"
+    info "$(msg start_dev_default)"
+    (
+      cd "$worktree_path"
+      nohup "$NPM_BIN" run dev > "$log_file" 2>&1 &
+      printf '%s\n' "$!" > "$pid_file"
+    )
+  fi
+
+  local pid=""
+  if [ -f "$pid_file" ]; then
+    pid=$(cat "$pid_file" 2>/dev/null || true)
+  fi
+
+  # Give the background job a brief moment to surface immediate failures.
+  sleep 1
+
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    if [ -n "$effective_port" ]; then
+      info "$(msg dev_started_port "$effective_port")"
+    else
+      info "$(msg dev_started_default)"
+    fi
+  else
+    local pid_display
+    pid_display="${pid:-unknown}"
+    info "$(msg dev_failed "$pid_display" "$log_file")"
+  fi
+
+  info "$(msg dev_log_hint "$log_file")"
+}
+
+maybe_warn_shell_integration() {
+  local target_path="${1:-}"
+
+  if [ -n "${WT_SHELL_WRAPPED:-}" ]; then
+    return
+  fi
+
+  if [ "${WT_SUPPRESS_AUTO_CD_HINT:-0}" = "1" ]; then
+    return
+  fi
+
+  if [ ! -t 1 ]; then
+    return
+  fi
+
+  if [ -z "$target_path" ] || [ ! -d "$target_path" ]; then
+    return
+  fi
+
+  if [ "${WT_AUTO_CD_HINT_SHOWN:-0}" = "1" ]; then
+    return
+  fi
+
+  WT_AUTO_CD_HINT_SHOWN=1
+
+  local shell_name
+  shell_name="${SHELL##*/}"
+  if [ -z "$shell_name" ]; then
+    shell_name="zsh"
+  fi
+
+  local hook_cmd="" rc_hint="reload your shell configuration" rc_file="" hook_present=0
+  local hook_marker="# wt shell integration: auto-cd after wt add/path/main/remove/clean"
+
+  case "$shell_name" in
+    zsh)
+      hook_cmd='wt shell-hook zsh >> ~/.zshrc'
+      rc_hint='source ~/.zshrc'
+      rc_file="$HOME/.zshrc"
+      ;;
+    bash)
+      hook_cmd='wt shell-hook bash >> ~/.bashrc'
+      rc_hint='source ~/.bashrc'
+      rc_file="$HOME/.bashrc"
+      ;;
+    *)
+      hook_cmd='wt shell-hook zsh >> ~/.zshrc'
+      ;;
+  esac
+
+  if [ -n "$rc_file" ] && [ -f "$rc_file" ] && grep -Fq "$hook_marker" "$rc_file"; then
+    hook_present=1
+  fi
+
+  if [ "$hook_present" -eq 1 ]; then
+    info "$(msg auto_cd_pending "$rc_hint")"
+    info "$(msg auto_cd_retry)"
+    return
+  fi
+
+  info "$(msg auto_cd_disabled "$hook_cmd")"
+  if [ "$rc_hint" = "reload your shell configuration" ]; then
+    info "$(msg auto_cd_reload)"
+  else
+    info "$(msg auto_cd_execute "$rc_hint")"
+  fi
+}
+
+cmd_list() {
+  [ $# -eq 0 ] || die "$(msg list_no_args)"
+  git_project worktree list
+}
+
+cmd_main() {
+  [ $# -eq 0 ] || die "$(msg main_no_args)"
+  maybe_warn_shell_integration "$PROJECT_DIR_ABS"
+  printf '%s\n' "$PROJECT_DIR_ABS"
+}
+
+cmd_path() {
+  if [ $# -ne 1 ]; then
+    die "$(msg path_requires_name)"
+  fi
+  local name="$1"
+  local target_path
+  target_path=$(worktree_path_for "$name")
+  if [ ! -d "$target_path" ]; then
+    die "$(msg worktree_not_found "$name")"
+  fi
+  maybe_warn_shell_integration "$target_path"
+  printf '%s\n' "$target_path"
+}
+
+cmd_add() {
+  local name="$1"
+  shift || true
+
+  [ -n "$name" ] || die "$(msg add_requires_name)"
+
+  local run_install="$ADD_INSTALL_DEPS"
+  local run_dev="$AUTO_START_DEV"
+  local copy_env="$ADD_COPY_ENV"
+  local branch=""
+  local port=""
+  local numeric_name=""
+  local effective_port=""
+
+  if [[ "$name" =~ ^[0-9]+$ ]]; then
+    numeric_name="$name"
+    if [ "$numeric_name" -ge 1 ] && [ "$numeric_name" -lt 1024 ]; then
+      info "$(msg reserved_port "$numeric_name")"
+    elif [ "$numeric_name" -gt 65535 ]; then
+      info "$(msg port_out_of_range "$numeric_name")"
+    fi
+  fi
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help|help)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        die "$(msg add_unknown_option "$1")"
+        ;;
+      *)
+        die "$(msg unexpected_extra_argument "$1")"
+        ;;
+    esac
+    shift || true
+  done
+
+  if [ $# -gt 0 ]; then
+    die "$(msg unexpected_extra_argument "$1")"
+  fi
+
+  if [ "$run_dev" -eq 1 ]; then
+    effective_port=$(port_from_name "$name")
+
+    if [ -n "$port" ]; then
+      local explicit_port
+      explicit_port=$(port_from_name "$port")
+      if [ -z "$explicit_port" ]; then
+        die "$(msg port_requires_numeric)"
+      fi
+      effective_port="$explicit_port"
+    fi
+
+    if [ -z "$effective_port" ] && [ -n "$numeric_name" ]; then
+      if [ "$numeric_name" -lt 1024 ]; then
+        info "$(msg fallback_default_port)"
+      elif [ "$numeric_name" -gt 65535 ]; then
+        info "$(msg fallback_default_port)"
+      fi
+    fi
+  fi
+
+  local worktree_path
+  worktree_path=$(worktree_path_for "$name")
+
+  if [ -e "$worktree_path" ]; then
+    die "$(msg worktree_exists "$worktree_path")"
+  fi
+
+  if [ -z "$branch" ]; then
+    branch=$(branch_for "$name")
+  fi
+
+  info "$(msg creating_worktree "$worktree_path" "$branch")"
+  git_project worktree add -b "$branch" "$worktree_path" >&2
+  info "$(msg worktree_created)"
+
+  if [ "$copy_env" -eq 1 ]; then
+    copy_env_file ".env.local" "$worktree_path"
+    copy_env_file ".env" "$worktree_path"
+  fi
+
+  if [ "$run_install" -eq 1 ]; then
+    if command -v "$NPM_BIN" >/dev/null 2>&1; then
+      info "$(msg installing_dependencies)"
+      (cd "$worktree_path" && "$NPM_BIN" ci >&2)
+    else
+      info "$(msg npm_missing_install)"
+    fi
+  fi
+
+  if [ "$run_dev" -eq 1 ]; then
+    start_dev_server "$worktree_path" "$effective_port"
+  else
+    info "$(msg dev_skipped_config)"
+  fi
+
+  info "$(msg worktree_ready "$worktree_path")"
+  maybe_warn_shell_integration "$worktree_path"
+  printf '%s\n' "$worktree_path"
+}
+
+config_print_effective() {
+  printf 'core.default_project_dir=%s\n' "$DEFAULT_PROJECT_DIR"
+  printf 'logging.subdir=%s\n' "$LOG_SUBDIR"
+  printf 'core.language=%s\n' "$(language_code_to_config_value "$LANGUAGE")"
+  if [ "$AUTO_START_DEV" -eq 1 ]; then
+    printf 'add.auto_start_dev=true\n'
+  else
+    printf 'add.auto_start_dev=false\n'
+  fi
+
+  local branch_value
+  if branch_value=$(config_get "core.default_branch" 2>/dev/null); then
+    if [ -n "$branch_value" ]; then
+      printf 'core.default_branch=%s\n' "$branch_value"
+    fi
+  fi
+
+  if [ "$ADD_INSTALL_DEPS" -eq 1 ]; then
+    printf 'add.install_dependencies=true\n'
+  else
+    printf 'add.install_dependencies=false\n'
+  fi
+
+  if [ "$ADD_COPY_ENV" -eq 1 ]; then
+    printf 'add.copy_env_files=true\n'
+  else
+    printf 'add.copy_env_files=false\n'
+  fi
+
+  while IFS=$'\t' read -r key type raw; do
+    case "$key" in
+      core.default_project_dir|core.default_branch|core.language|logging.subdir|add.auto_start_dev|add.install_dependencies|add.copy_env_files)
+        continue
+        ;;
+    esac
+    local value="$raw"
+    if [ "$type" = "string" ]; then
+      value=$(toml_unescape_string "$value")
+    fi
+    printf '%s=%s\n' "$key" "$value"
+  done < <(config_iterate_file)
+}
+
+cmd_config() {
+  if [ $# -eq 0 ]; then
+    init_settings
+    config_print_effective
+    return
+  fi
+
+  case "$1" in
+    list|--list)
+      if [ $# -ne 1 ]; then
+        die "$(msg config_list_no_args)"
+      fi
+      init_settings
+      config_print_effective
+      ;;
+    get|--get)
+      shift || die "$(msg config_get_requires_key)"
+      if [ $# -ne 1 ]; then
+        die "$(msg config_get_requires_exactly_one)"
+      fi
+      local key="$1"
+      local value
+      if value=$(config_get "$key" 2>/dev/null); then
+        printf '%s\n' "$value"
+      else
+        die "$(msg config_key_not_found "$key")"
+      fi
+      ;;
+    set|--set)
+      shift || die "$(msg config_set_requires)"
+      if [ $# -ne 2 ]; then
+        die "$(msg config_set_requires)"
+      fi
+      local key="$1"
+      shift
+      local value="$1"
+      if [ "$key" = "core.language" ]; then
+        if normalized=$(normalize_language "$value" 2>/dev/null); then
+          value=$(language_code_to_config_value "$normalized")
+        else
+          die "$(msg invalid_language "$value")"
+        fi
+      fi
+      config_set "$key" "$value"
+      ;;
+    unset|--unset)
+      shift || die "$(msg config_unset_requires_key)"
+      if [ $# -ne 1 ]; then
+        die "$(msg config_unset_requires_exactly_one)"
+      fi
+      config_unset "$1"
+      ;;
+    -h|--help|help)
+      case "$LANGUAGE" in
+        zh)
+          cat <<'CONFIG_USAGE_ZH'
+wt config - 查看或更新 wt-cli 配置
+
+子命令:
+  wt config list                 显示生效配置（包含默认值）
+  wt config get <key>            输出指定配置项（若缺失则报错）
+  wt config set <key> <value>    将配置写入 ~/.wt-cli
+  wt config unset <key>          从 ~/.wt-cli 移除配置
+
+快捷方式:
+  wt config <key>                等同于 get
+  wt config <key> <value>        等同于 set
+
+支持的键:
+  core.default_project_dir       主 franxx.store 仓库路径（由 wt init 设置）
+  core.default_branch            新 worktree 的默认分支（可选）
+  core.language                  CLI 显示语言（english|chinese，默认 chinese）
+  logging.subdir                 worktree 下存放 dev 日志的子目录（默认: tmp）
+  add.auto_start_dev             控制 wt add 后是否运行 npm run dev
+  add.install_dependencies       控制 wt add 后是否执行 npm ci
+  add.copy_env_files             控制 wt add 是否复制 .env/.env.local
+
+说明:
+  单次执行可通过环境变量（例如 WT_PROJECT_DIR）覆盖配置。
+  布尔值接受 true/false/1/0/yes/no/on/off。
+CONFIG_USAGE_ZH
+          ;;
+        *)
+          cat <<'CONFIG_USAGE_EN'
+wt config - Inspect or update wt-cli configuration
+
+Subcommands:
+  wt config list                 Show effective configuration (includes defaults)
+  wt config get <key>            Print a single value (fails if missing)
+  wt config set <key> <value>    Persist value in ~/.wt-cli
+  wt config unset <key>          Remove key from ~/.wt-cli
+
+Shortcuts:
+  wt config <key>                Shortcut for get
+  wt config <key> <value>        Shortcut for set
+
+Supported keys:
+  core.default_project_dir       Path to the main franxx.store repository (set by wt init)
+  core.default_branch            Default branch name for new worktrees (optional)
+  core.language                  CLI language (english or chinese; default: chinese)
+  logging.subdir                 Subdirectory under worktree for dev logs (default: tmp)
+  add.auto_start_dev             Controls whether wt add runs npm run dev
+  add.install_dependencies       Controls whether wt add runs npm ci
+  add.copy_env_files             Controls whether wt add copies .env/.env.local
+
+Notes:
+  Environment variables (like WT_PROJECT_DIR) override config for a single invocation.
+  Boolean values accept true/false/1/0/yes/no/on/off.
+CONFIG_USAGE_EN
+          ;;
+      esac
+      ;;
+    --*)
+      die "$(msg config_unknown_option "$1")"
+      ;;
+    *)
+      if [ $# -eq 1 ]; then
+        local value
+        if value=$(config_get "$1" 2>/dev/null); then
+          printf '%s\n' "$value"
+        else
+          die "$(msg config_key_not_found "$1")"
+        fi
+      elif [ $# -eq 2 ]; then
+        config_set "$1" "$2"
+      else
+        die "$(msg config_expect_key_or_value)"
+      fi
+      ;;
+  esac
+}
+
+cmd_shell_hook() {
+  if [ $# -eq 0 ]; then
+    die "$(msg shell_hook_requires_shell)"
+  fi
+
+  case "$1" in
+    -h|--help|help)
+      case "$LANGUAGE" in
+        zh)
+          cat <<'HOOK_USAGE_ZH'
+wt shell-hook 用法:
+  wt shell-hook zsh
+  wt shell-hook bash
+
+将输出通过 eval/source 加载以安装包装函数，例如：
+  eval "$(wt shell-hook zsh)"
+HOOK_USAGE_ZH
+          ;;
+        *)
+          cat <<'HOOK_USAGE_EN'
+wt shell-hook usage:
+  wt shell-hook zsh
+  wt shell-hook bash
+
+Pipe the output into eval/source to install the wrapper, e.g.
+  eval "$(wt shell-hook zsh)"
+HOOK_USAGE_EN
+          ;;
+      esac
+      return
+      ;;
+  esac
+
+  local shell="$1"
+  case "$shell" in
+    zsh|bash)
+      cat <<'WT_HOOK'
+# wt shell integration: auto-cd after wt add/path/main/remove/clean
+wt() {
+  local __wt_out __wt_status __wt_cmd __wt_should_cd=0
+  __wt_out="$(WT_SHELL_WRAPPED=1 command wt "$@")"
+  __wt_status=$?
+
+  if [ $__wt_status -ne 0 ]; then
+    if [ -n "$__wt_out" ]; then
+      printf '%s\n' "$__wt_out"
+    fi
+    return $__wt_status
+  fi
+
+  if [ $# -eq 0 ]; then
+    __wt_cmd="list"
+  else
+    __wt_cmd="$1"
+  fi
+
+  case "$__wt_cmd" in
+    add|main|path)
+      __wt_should_cd=1
+      ;;
+    remove|rm|clean)
+      __wt_should_cd=1
+      ;;
+    config|list|help|-h|--help|--version|version)
+      __wt_should_cd=0
+      ;;
+    -*)
+      __wt_should_cd=0
+      ;;
+    *)
+      __wt_should_cd=1
+      ;;
+  esac
+
+  if [ $__wt_should_cd -eq 1 ] && [ -n "$__wt_out" ] && [ -d "$__wt_out" ]; then
+    cd "$__wt_out" || return $?
+    return 0
+  fi
+
+  if [ -n "$__wt_out" ]; then
+    printf '%s\n' "$__wt_out"
+  fi
+}
+# wt shell integration: end
+WT_HOOK
+      ;;
+    *)
+      die "$(msg shell_hook_unsupported_shell "$shell")"
+      ;;
+  esac
+}
+
+cmd_init() {
+  local branch=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --branch|branch)
+        shift || die "$(msg branch_requires_value)"
+        branch="$1"
+        ;;
+      -h|--help|help)
+        case "$LANGUAGE" in
+          zh)
+            cat <<'INIT_USAGE_ZH'
+wt init 用法:
+  wt init [branch <name>]
+
+请在 franxx.store 仓库根目录运行，以将设置写入 ~/.wt-cli：
+- 设置 core.default_project_dir 为仓库根目录。
+- 提供 branch <name> 时设置 core.default_branch（默认使用当前分支）。
+INIT_USAGE_ZH
+            ;;
+          *)
+            cat <<'INIT_USAGE_EN'
+wt init usage:
+  wt init [branch <name>]
+
+Run inside the franxx.store repository to capture settings into ~/.wt-cli.
+- Sets core.default_project_dir to the repo root.
+- Optionally sets core.default_branch when branch <name> is provided (defaults to current branch).
+INIT_USAGE_EN
+            ;;
+        esac
+        return
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        die "$(msg init_unknown_option "$1")"
+        ;;
+      *)
+        die "$(msg init_no_positional)"
+        ;;
+    esac
+    shift || true
+  done
+
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || die "$(msg init_run_inside_git)"
+  config_set "core.default_project_dir" "$repo_root"
+  info "$(msg init_set_project "$repo_root")"
+
+  if [ -z "$branch" ]; then
+    branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+  fi
+
+  if [ -n "$branch" ]; then
+    config_set "core.default_branch" "$branch"
+    info "$(msg init_set_branch "$branch")"
+  fi
+
+  info "$(msg init_done)"
+}
+
+cmd_remove() {
+  local name=""
+  local assume_yes=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -y|--yes|yes)
+        assume_yes=1
+        ;;
+      -h|--help|help)
+        usage
+        exit 0
+        ;;
+      -*)
+        die "$(msg remove_unknown_option "$1")"
+        ;;
+      *)
+        if [ -n "$name" ]; then
+          die "$(msg remove_accepts_at_most_one)"
+        fi
+        name="$1"
+        ;;
+    esac
+    shift || true
+  done
+
+  local target_path=""
+  local removing_current=0
+  local current_abs
+  current_abs=$(pwd -P)
+
+  if [ -n "$name" ]; then
+    target_path=$(worktree_path_for "$name")
+    [ -d "$target_path" ] || die "$(msg worktree_not_found "$name")"
+    if [ "$current_abs" = "$target_path" ]; then
+      removing_current=1
+    fi
+  else
+    if [ "$current_abs" = "$PROJECT_DIR_ABS" ]; then
+      die "$(msg cannot_remove_main)"
+    fi
+    local current_base
+    current_base=$(basename "$current_abs")
+    if [[ "$current_base" != "$WORKTREE_PREFIX"* ]]; then
+      die "$(msg specify_worktree_or_inside)"
+    fi
+    name="${current_base#$WORKTREE_PREFIX}"
+    target_path="$current_abs"
+    removing_current=1
+
+    if [ "$assume_yes" -eq 0 ]; then
+      printf '%s ' "$(msg remove_confirm_prompt "$name")" >&2
+      read -r reply
+      if [ -n "$reply" ] && [[ ! "$reply" =~ ^[Yy]$ ]]; then
+        info "$(msg aborted)"
+        return 1
+      fi
+    fi
+  fi
+
+  info "$(msg removing_worktree "$target_path")"
+  git_project worktree remove "$target_path" --force >&2 || die "$(msg remove_failed)"
+
+  local branch
+  branch=$(branch_for "$name")
+  if git_project show-ref --verify --quiet "refs/heads/$branch"; then
+    git_project branch -D "$branch" >&2 || true
+    info "$(msg removed_branch "$branch")"
+  fi
+
+  info "$(msg worktree_removed "$name")"
+
+  if [ "$removing_current" -eq 1 ]; then
+    info "$(msg current_worktree_removed)"
+    maybe_warn_shell_integration "$PROJECT_DIR_ABS"
+    printf '%s\n' "$PROJECT_DIR_ABS"
+  fi
+}
+
+cmd_clean() {
+  [ $# -eq 0 ] || die "$(msg clean_no_args)"
+  local removed=0
+  local current_abs
+  current_abs=$(pwd -P)
+  local current_removed=0
+
+  while IFS= read -r worktree_path; do
+    local base
+    base=$(basename "$worktree_path")
+    if [[ "$base" == "$WORKTREE_PREFIX"* ]]; then
+      local suffix="${base#$WORKTREE_PREFIX}"
+      if [[ "$suffix" =~ ^[0-9]+$ ]]; then
+        info "$(msg cleaning_worktree "$suffix")"
+        git_project worktree remove "$worktree_path" --force >&2 || true
+        local branch_name
+        branch_name=$(branch_for "$suffix")
+        git_project branch -D "$branch_name" >/dev/null 2>&1 || true
+        removed=$((removed + 1))
+        if [ "$current_abs" = "$worktree_path" ]; then
+          current_removed=1
+        fi
+      fi
+    fi
+  done < <(git_project worktree list --porcelain | awk '/^worktree / {print $2}')
+
+  if [ "$removed" -gt 0 ]; then
+    info "$(msg cleaned_count "$removed")"
+  else
+    info "$(msg cleaned_none)"
+  fi
+
+  if [ "$current_removed" -eq 1 ]; then
+    info "$(msg clean_switch_back)"
+    maybe_warn_shell_integration "$PROJECT_DIR_ABS"
+    printf '%s\n' "$PROJECT_DIR_ABS"
+  fi
+}
+
+main() {
+  init_settings
+
+  local command=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --)
+        shift
+        break
+        ;;
+      -*)
+        usage_exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift || true
+  done
+
+  if [ $# -eq 0 ]; then
+    command="help"
+  else
+    command="$1"
+    shift || true
+  fi
+
+  case "$command" in
+    config)
+      cmd_config "$@"
+      return
+      ;;
+    shell-hook)
+      cmd_shell_hook "$@"
+      return
+      ;;
+    init)
+      cmd_init "$@"
+      return
+      ;;
+    help)
+      usage
+      return
+      ;;
+    version)
+      printf '%s\n' "$VERSION"
+      return
+      ;;
+  esac
+
+  resolve_project
+
+  case "$command" in
+    list)
+      cmd_list "$@"
+      ;;
+    add)
+      [ $# -ge 1 ] || die "$(msg add_requires_name)"
+      cmd_add "$@"
+      ;;
+    rm|remove)
+      cmd_remove "$@"
+      ;;
+    clean)
+      cmd_clean "$@"
+      ;;
+    main)
+      cmd_main "$@"
+      ;;
+    path)
+      cmd_path "$@"
+      ;;
+    *)
+      cmd_path "$command" "$@"
+      ;;
+  esac
+}
+
+main "$@"

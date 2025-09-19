@@ -1,0 +1,20 @@
+# Example wt-cli configuration (~/.wt-cli)
+
+[core]
+# Absolute path to the tracked repository (set by `wt init`)
+default_project_dir = "/Users/you/Developer/your-project"
+# Worktree folders default to "<basename(default_project_dir)>.<worktree-name>"
+# Optional default branch captured via `wt init`
+default_branch = "main"
+
+[logging]
+# Subdirectory created inside each worktree for dev-server logs
+subdir = "tmp"
+
+[add]
+# true => run npm run dev after wt add; false skips the dev server
+auto_start_dev = true
+# true => run npm ci after creating the worktree
+install_dependencies = true
+# true => copy .env/.env.local into the new worktree
+copy_env_files = true
