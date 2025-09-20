@@ -86,10 +86,10 @@ msg_en() {
       printf '✅ Worktree ready: %s' "$1"
       ;;
     init_set_project)
-      printf '✅ Set workingRepo.path = %s' "$1"
+      printf '✅ Set repo.path = %s' "$1"
       ;;
     init_set_branch)
-      printf '✅ Set workingRepo.branch = %s' "$1"
+      printf '✅ Set repo.branch = %s' "$1"
       ;;
     init_done)
       printf '🎉 wt init complete; future commands will use these defaults'
@@ -393,10 +393,10 @@ msg_zh() {
       printf '✅ 新 worktree 就绪: %s' "$1"
       ;;
     init_set_project)
-      printf '✅ 已设置 workingRepo.path = %s' "$1"
+      printf '✅ 已设置 repo.path = %s' "$1"
       ;;
     init_set_branch)
-      printf '✅ 已设置 workingRepo.branch = %s' "$1"
+      printf '✅ 已设置 repo.branch = %s' "$1"
       ;;
     init_done)
       printf '🎉 wt init 完成，后续命令将默认使用以上配置'

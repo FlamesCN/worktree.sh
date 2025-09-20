@@ -58,7 +58,7 @@ wt - franxx.store worktree 助手
   path <name>        输出指定 worktree 的路径
   config             查看或更新 worktree.sh 配置
   uninstall          卸载 wt 并清理 shell 集成
-  init [--branch <name>] 将当前仓库默认值写入 ~/.worktree.sh/config.json
+  init [--branch <name>] 将当前仓库默认值写入 ~/.worktree.sh/config.kv
   shell-hook <shell> 输出 shell 集成片段 (bash|zsh)
 
 ```
@@ -157,10 +157,10 @@ wt 3001                # 切换到 3001 worktree
 wt main                # 回到主仓库
 
 # 配置选项
-wt config set worktreeAdd.serveDev.enabled false      # 关闭自动启动开发命令
-wt config set worktreeAdd.installDeps.enabled true  # 开启自动安装依赖
-wt config set worktreeAdd.branchPrefix "feature/"     # 自定义新建分支的前缀
-wt config set worktreeAdd.branchPrefix '""'           # 取消前缀，使分支名与 worktree 一致
+wt config set add.serve-dev.enabled false      # 关闭自动启动开发命令
+wt config set add.install-deps.enabled true  # 开启自动安装依赖
+wt config set add.branch-prefix "feature/"     # 自定义新建分支的前缀
+wt config set add.branch-prefix '""'           # 取消前缀，使分支名与 worktree 一致
 wt config list                               # 查看所有配置
 
 # 清理工作
@@ -169,7 +169,7 @@ wt rm 3001 --yes      # 直接删除指定 worktree
 wt clean              # 清理所有数字命名的 worktree
 ```
 
-配置仅来源于 `~/.worktree.sh/config.json`，`WT_*` 环境变量已不再支持临时覆盖。
+配置默认写入 `~/.worktree.sh/config.kv`（key=value 文本格式），你也可以通过环境变量 `WT_CONFIG_FILE` 指定其他路径。该文件同时包含默认值与用户覆写，wt 直接读取它，无需额外 JSON 缓存或 Python 解析。
 
 ## 命令参考
 

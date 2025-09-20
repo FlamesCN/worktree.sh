@@ -60,7 +60,7 @@ Commands:
   path <name>        Output path of specified worktree
   config             View or update worktree.sh configuration
   uninstall          Uninstall wt and clean shell hooks
-  init [--branch <name>] Write current repository defaults to ~/.worktree.sh/config.json
+  init [--branch <name>] Write current repository defaults to ~/.worktree.sh/config.kv
   shell-hook <shell> Output shell integration snippet (bash|zsh)
 
 ```
@@ -159,10 +159,10 @@ wt 3001                # Switch to 3001 worktree
 wt main                # Return to main repository
 
 # Configuration options
-wt config set worktreeAdd.serveDev.enabled false      # Disable auto-run dev command
-wt config set worktreeAdd.installDeps.enabled true  # Enable auto-install dependencies
-wt config set worktreeAdd.branchPrefix "feature/"     # Customize branch name prefix
-wt config set worktreeAdd.branchPrefix '""'           # Remove prefix so branches match worktree names
+wt config set add.serve-dev.enabled false      # Disable auto-run dev command
+wt config set add.install-deps.enabled true  # Enable auto-install dependencies
+wt config set add.branch-prefix "feature/"     # Customize branch name prefix
+wt config set add.branch-prefix '""'           # Remove prefix so branches match worktree names
 wt config list                               # View all configuration
 
 # Cleanup work
@@ -171,7 +171,7 @@ wt rm 3001 --yes      # Directly delete specified worktree
 wt clean              # Clean all numerically named worktrees
 ```
 
-Configuration is now sourced exclusively from `~/.worktree.sh/config.json`. Temporary `WT_*` environment overrides are no longer supported.
+Configuration is stored in `~/.worktree.sh/config.kv`, a key=value file that already includes defaults merged with any overrides. wt reads this file directly, so there is no separate JSON cache or Python step. Set `WT_CONFIG_FILE` if you want to point wt at a different config path.
 
 ## Command Reference
 

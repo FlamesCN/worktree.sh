@@ -198,7 +198,7 @@ main() {
   if [ "$shell_type" = "none" ]; then
     printf '  2) Optionally add shell hook manually: `wt shell-hook zsh >> ~/.zshrc` or `wt shell-hook bash >> ~/.bashrc`\n'
   fi
-  printf 'Configuration is stored in %s (JSON).\n' "${WT_CONFIG_FILE:-$HOME/.worktree.sh/config.json}"
+  printf 'Configuration is stored in %s (key=value).\n' "${WT_CONFIG_FILE:-$HOME/.worktree.sh/config.kv}"
 }
 
 main "$@"

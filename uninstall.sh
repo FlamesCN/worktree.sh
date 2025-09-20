@@ -121,7 +121,7 @@ remove_shell_hook() {
 
 backup_config_dir() {
   local default_dir="$HOME/.worktree.sh"
-  local default_file="$default_dir/config.json"
+  local default_file="$default_dir/config.kv"
   local config_file="${WT_CONFIG_FILE:-$default_file}"
   local timestamp
   timestamp=$(date +%Y%m%d_%H%M%S)
