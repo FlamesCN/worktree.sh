@@ -152,13 +152,22 @@ msg_en() {
       printf '✅ Worktree created'
       ;;
     installing_dependencies)
-      printf '📦 Installing dependencies (npm ci)'
+      printf '📦 Installing dependencies (%s)' "${1:-npm ci}"
       ;;
     npm_missing_install)
       printf '⚠️  npm not found; skipping dependency installation'
       ;;
+    npm_missing_package_json)
+      printf '⚠️  package.json not found; skipping dependency installation'
+      ;;
     dev_skipped_config)
       printf '⚙️  Dev server skipped per configuration'
+      ;;
+    dev_skipped_package_json)
+      printf '⚙️  package.json not found; skipping dev server'
+      ;;
+    npm_missing_dev_script)
+      printf '⚙️  package.json is missing a "dev" script; skipping dev server'
       ;;
     worktree_ready)
       printf '✅ Worktree ready: %s' "$1"
@@ -381,13 +390,22 @@ msg_zh() {
       printf '✅ worktree 创建完成'
       ;;
     installing_dependencies)
-      printf '📦 安装依赖 (npm ci)'
+      printf '📦 安装依赖 (%s)' "${1:-npm ci}"
       ;;
     npm_missing_install)
       printf '⚠️  未找到 npm，跳过依赖安装'
       ;;
+    npm_missing_package_json)
+      printf '⚠️  未找到 package.json，跳过依赖安装'
+      ;;
     dev_skipped_config)
       printf '⚙️  根据配置已跳过 dev server'
+      ;;
+    dev_skipped_package_json)
+      printf '⚙️  未找到 package.json，已跳过 dev server'
+      ;;
+    npm_missing_dev_script)
+      printf '⚙️  package.json 未定义 "dev" 脚本，已跳过 dev server'
       ;;
     worktree_ready)
       printf '✅ 新 worktree 就绪: %s' "$1"
@@ -965,6 +983,65 @@ copy_env_file() {
   fi
 }
 
+has_package_json_script() {
+  local project_dir="${1:?project directory is required}"
+  local script_name="${2:?script name is required}"
+  local package_json="$project_dir/package.json"
+
+  [ -f "$package_json" ] || return 1
+
+  if command -v node >/dev/null 2>&1; then
+    if node - "$package_json" "$script_name" >/dev/null 2>&1 <<'NODE'
+const fs = require('fs');
+const [pkgPath, scriptName] = process.argv.slice(2);
+try {
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) || {};
+  if (pkg.scripts && pkg.scripts[scriptName]) {
+    process.exit(0);
+  }
+} catch (err) {}
+process.exit(1);
+NODE
+    then
+      return 0
+    fi
+  fi
+
+  local python=""
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      python="$candidate"
+      break
+    fi
+  done
+
+  if [ -n "$python" ]; then
+    if "$python" - "$package_json" "$script_name" >/dev/null 2>&1 <<'PY'
+import json
+import sys
+
+pkg_path = sys.argv[1]
+script_name = sys.argv[2]
+
+try:
+    with open(pkg_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    scripts = data.get('scripts') or {}
+    if scripts.get(script_name):
+        sys.exit(0)
+except Exception:
+    pass
+
+sys.exit(1)
+PY
+    then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
 start_dev_server() {
   local worktree_path="${1:?worktree path is required}"
   local port=""
@@ -1132,6 +1209,10 @@ cmd_add() {
   local port=""
   local numeric_name=""
   local effective_port=""
+  local package_json=""
+  local package_lock=""
+  local npm_shrinkwrap=""
+  local has_package_json=0
 
   if [[ "$name" =~ ^[0-9]+$ ]]; then
     numeric_name="$name"
@@ -1207,17 +1288,44 @@ cmd_add() {
     copy_env_file ".env" "$worktree_path"
   fi
 
+  package_json="$worktree_path/package.json"
+  package_lock="$worktree_path/package-lock.json"
+  npm_shrinkwrap="$worktree_path/npm-shrinkwrap.json"
+  if [ -f "$package_json" ]; then
+    has_package_json=1
+  fi
+
   if [ "$run_install" -eq 1 ]; then
     if command -v "$NPM_BIN" >/dev/null 2>&1; then
-      info "$(msg installing_dependencies)"
-      (cd "$worktree_path" && "$NPM_BIN" ci >&2)
+      if [ "$has_package_json" -eq 1 ]; then
+        local install_cmd
+        if [ -f "$package_lock" ] || [ -f "$npm_shrinkwrap" ]; then
+          install_cmd="npm ci"
+          info "$(msg installing_dependencies "$install_cmd")"
+          (cd "$worktree_path" && "$NPM_BIN" ci >&2)
+        else
+          install_cmd="npm install"
+          info "$(msg installing_dependencies "$install_cmd")"
+          (cd "$worktree_path" && "$NPM_BIN" install >&2)
+        fi
+      else
+        info "$(msg npm_missing_package_json)"
+      fi
     else
       info "$(msg npm_missing_install)"
     fi
   fi
 
   if [ "$run_dev" -eq 1 ]; then
-    start_dev_server "$worktree_path" "$effective_port"
+    if [ "$has_package_json" -eq 1 ]; then
+      if has_package_json_script "$worktree_path" "dev"; then
+        start_dev_server "$worktree_path" "$effective_port"
+      else
+        info "$(msg npm_missing_dev_script)"
+      fi
+    else
+      info "$(msg dev_skipped_package_json)"
+    fi
   else
     info "$(msg dev_skipped_config)"
   fi
