@@ -32,6 +32,7 @@ readonly -a CONFIG_DEFAULT_COPY_ENV_FILES=(".env" ".env.local")
 WORKING_REPO_PATH=""
 WORKTREE_NAME_PREFIX=""
 WORKTREE_BRANCH_PREFIX=""
+WORKING_REPO_BRANCH=""
 SERVE_DEV_LOGGING_PATH=""
 SERVE_DEV_ENABLED=0
 INSTALL_DEPS_ENABLED=0
@@ -623,6 +624,7 @@ init_settings() {
   INSTALL_DEPS_ENABLED="$CONFIG_DEFAULT_INSTALL_DEPS_ENABLED"
   COPY_ENV_ENABLED="$CONFIG_DEFAULT_COPY_ENV_ENABLED"
   WORKTREE_BRANCH_PREFIX="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
+  WORKING_REPO_BRANCH=""
   COPY_ENV_FILE_SELECTION=("${CONFIG_DEFAULT_COPY_ENV_FILES[@]}")
   INSTALL_DEPS_COMMAND="$CONFIG_DEFAULT_INSTALL_DEPS_COMMAND"
   SERVE_DEV_COMMAND="$CONFIG_DEFAULT_SERVE_DEV_COMMAND"
@@ -639,6 +641,14 @@ init_settings() {
       WORKING_REPO_PATH="$raw_value"
       WORKTREE_NAME_PREFIX="$(basename "$WORKING_REPO_PATH")."
       WORKING_REPO_PATH_CONFIGURED=1
+    fi
+  fi
+
+  if entry=$(config_get_entry "workingRepo.branch" 2>/dev/null); then
+    type="${entry%%"${CONFIG_KV_DELIM}"*}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
+    if [ "$type" = "string" ] && [ -n "$raw_value" ]; then
+      WORKING_REPO_BRANCH="$raw_value"
     fi
   fi
 
@@ -874,6 +884,26 @@ worktree_ref_exists() {
 branch_for() {
   local name="$1"
   printf '%s%s\n' "$WORKTREE_BRANCH_PREFIX" "$name"
+}
+
+validate_worktree_name() {
+  local candidate="${1:-}"
+
+  if [ -z "$candidate" ]; then
+    return 1
+  fi
+
+  if [[ "$candidate" =~ [[:space:]] ]]; then
+    return 1
+  fi
+
+  case "$candidate" in
+    .|'..'|*/*|*\\*|*~*)
+      return 1
+      ;;
+  esac
+
+  return 0
 }
 
 port_from_name() {
@@ -1294,6 +1324,9 @@ cmd_add() {
   shift || true
 
   [ -n "$name" ] || die "$(msg add_requires_name)"
+  if ! validate_worktree_name "$name"; then
+    die "$(msg invalid_worktree_name "$name")"
+  fi
 
   local run_install="$INSTALL_DEPS_ENABLED"
   local run_dev="$SERVE_DEV_ENABLED"
@@ -1301,6 +1334,7 @@ cmd_add() {
   local branch=""
   local numeric_name=""
   local effective_port=""
+  local base_branch="$WORKING_REPO_BRANCH"
 
   if [[ "$name" =~ ^[0-9]+$ ]]; then
     numeric_name="$name"
@@ -1359,7 +1393,11 @@ cmd_add() {
   fi
 
   info "$(msg creating_worktree "$worktree_path" "$branch")"
-  git_project worktree add -b "$branch" "$worktree_path" >&2
+  if [ -n "$base_branch" ]; then
+    git_project worktree add -b "$branch" "$worktree_path" "$base_branch" >&2
+  else
+    git_project worktree add -b "$branch" "$worktree_path" >&2
+  fi
   info "$(msg worktree_created)"
 
   if [ "$copy_env" -eq 1 ]; then
@@ -2068,24 +2106,28 @@ cmd_clean() {
   current_abs=$(pwd -P)
   local current_removed=0
 
-  while IFS= read -r worktree_path; do
-    local base
-    base=$(basename "$worktree_path")
-    if [[ "$base" == "$WORKTREE_NAME_PREFIX"* ]]; then
-      local suffix="${base#"$WORKTREE_NAME_PREFIX"}"
-      if [[ "$suffix" =~ ^[0-9]+$ ]]; then
-        info "$(msg cleaning_worktree "$suffix")"
-        git_project worktree remove "$worktree_path" --force >&2 || true
-        local branch_name
-        branch_name=$(branch_for "$suffix")
-        git_project branch -D "$branch_name" >/dev/null 2>&1 || true
-        removed=$((removed + 1))
-        if [ "$current_abs" = "$worktree_path" ]; then
-          current_removed=1
+  while IFS= read -r line; do
+    case "$line" in
+      worktree\ *)
+        local worktree_path base suffix branch_name
+        worktree_path="${line#worktree }"
+        base=$(basename "$worktree_path")
+        if [[ "$base" == "$WORKTREE_NAME_PREFIX"* ]]; then
+          suffix="${base#"$WORKTREE_NAME_PREFIX"}"
+          if [[ "$suffix" =~ ^[0-9]+$ ]]; then
+            info "$(msg cleaning_worktree "$suffix")"
+            git_project worktree remove "$worktree_path" --force >&2 || true
+            branch_name=$(branch_for "$suffix")
+            git_project branch -D "$branch_name" >/dev/null 2>&1 || true
+            removed=$((removed + 1))
+            if [ "$current_abs" = "$worktree_path" ]; then
+              current_removed=1
+            fi
+          fi
         fi
-      fi
-    fi
-  done < <(git_project worktree list --porcelain | awk '/^worktree / {print $2}')
+        ;;
+    esac
+  done < <(git_project worktree list --porcelain)
 
   if [ "$removed" -gt 0 ]; then
     info "$(msg cleaned_count "$removed")"

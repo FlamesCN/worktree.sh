@@ -172,6 +172,9 @@ msg_en() {
     unexpected_extra_argument)
       printf 'unexpected extra argument: %s' "$1"
       ;;
+    invalid_worktree_name)
+      printf 'invalid worktree name: %s (no /, \\, ~, dot segments, or whitespace)' "$1"
+      ;;
     port_requires_numeric)
       printf 'port requires a numeric value between 1024 and 65535'
       ;;
@@ -475,6 +478,9 @@ msg_zh() {
       ;;
     unexpected_extra_argument)
       printf '出现未预期的额外参数: %s' "$1"
+      ;;
+    invalid_worktree_name)
+      printf '非法的 worktree 名称：%s（禁止包含 /、\\、~、路径点段或空白）' "$1"
       ;;
     port_requires_numeric)
       printf 'port 需要 1024-65535 之间的数值'
