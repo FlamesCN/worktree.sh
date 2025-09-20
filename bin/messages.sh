@@ -214,6 +214,9 @@ msg_en() {
     init_no_positional)
       printf 'init takes no positional arguments'
       ;;
+    init_forbid_home)
+      printf 'wt init cannot target your home directory (%s)' "$1"
+      ;;
     init_run_inside_git)
       printf 'run wt init inside a git repository'
       ;;
@@ -511,6 +514,9 @@ msg_zh() {
       ;;
     init_no_positional)
       printf 'init 不接受位置参数'
+      ;;
+    init_forbid_home)
+      printf '禁止在家目录运行 wt init（%s）' "$1"
       ;;
     init_run_inside_git)
       printf '请在 git 仓库中运行 wt init'

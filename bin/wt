@@ -1874,7 +1874,7 @@ cmd_init() {
         shift || die "$(msg branch_requires_value)"
         branch="$1"
         ;;
-      -h|--help|help)
+      --help|help)
         case "$LANGUAGE" in
           zh)
             cat <<'INIT_USAGE_ZH'
@@ -1899,10 +1899,6 @@ INIT_USAGE_EN
         esac
         return
         ;;
-      --)
-        shift
-        break
-        ;;
       -*)
         die "$(msg init_unknown_option "$1")"
         ;;
@@ -1913,8 +1909,18 @@ INIT_USAGE_EN
     shift || true
   done
 
-  local repo_root
+  local repo_root repo_root_abs home_dir_abs
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || die "$(msg init_run_inside_git)"
+  if ! repo_root_abs=$(cd "$repo_root" 2>/dev/null && pwd -P); then
+    repo_root_abs="$repo_root"
+  fi
+  if ! home_dir_abs=$(cd "$HOME" 2>/dev/null && pwd -P); then
+    home_dir_abs="$HOME"
+  fi
+
+  if [ "$repo_root_abs" = "$home_dir_abs" ]; then
+    die "$(msg init_forbid_home "$repo_root")"
+  fi
   config_set "workingRepo.path" "$repo_root"
   info "$(msg init_set_project "$repo_root")"
 
