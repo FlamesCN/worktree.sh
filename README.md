@@ -1,187 +1,139 @@
 # worktree.sh
+>
+> Zero-friction git worktree manager for parallel feature development.
 
-As Claude Code's intelligence recovers and gpt5 high in Codex shows high IQ, I'm increasingly inclined to use git worktree for parallel development. However, the repetitive work of creating branches, setting up worktrees, copying environment variables, installing dependencies, and starting services increases the difficulty of using worktrees.
+[中文文档 »](README.zh-CN.md)
 
-I've also tried claude code command or using files to coordinate communication between multiple claude code and codex instances, but currently these two agents interact with the file system slowly, so this project was born.
+worktree.sh packages the repetitive setup required to spin up extra git worktrees: it creates branches, copies environment files, installs dependencies, and even starts your dev server so you can jump straight into coding.
 
-If you also want to try parallel development, give this project a try.
+## Highlights
 
-- [中文](README.zh-CN.md)
+- Launch ready-to-code worktrees with one command; automatic branch naming and directory placement keep everything tidy.
+- Reuse the same CLI to jump between the main repo and feature sandboxes without thinking about paths.
+- Configurable shell hooks keep `wt` available everywhere and let commands cd into the right folder automatically.
+- Safe cleanup helpers remove stale worktrees and their branches while preserving your project data.
 
-## Complete Usage Flow
+## Why Local Worktrees Matter for Agents
+
+- Until agents can truly self-dispatch, they still need a “local PR” checkpoint; a worktree is the sandbox where you polish changes before anything hits a hosted platform.
+- Instead of handing the entire flow to a Claude Code subagent, keeping a local worktree lets you intervene at will and keeps the primary agent’s context lightweight.
+- Spin up separate worktrees for high-variance explorations—think Claude Code “gacha” pulls on front-end UI—while Codex runs deterministic backend tasks that don’t contend for the same resources.
+- As models stretch into long-running sessions (minutes, hours, or more), parallel worktrees are a practical way to keep multiple agents or tasks moving without stepping on each other.
+- Solo developers can stay entirely local: agent-to-agent collaboration happens inside these worktrees, and pushing to a remote only matters if you need Codex Web, Codex PR Review, Claude Code PR Review, or another external service.
+
+## Quick Look
+
+![CLI overview](asset/worktree.sh.screenshot-1.png)
+![Worktree switching](asset/worktree.sh.screenshot-2.png)
+
+## Quick Start
+
+1. Install the CLI (auto-detects shell):
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
+   ```
+
+2. In the repository you want to parallelize, record it as the default project:
+
+   ```bash
+   wt init
+   ```
+
+3. Spin up a new worktree:
+
+   ```bash
+   wt add 3000
+   ```
+
+   - Creates the worktree in `../project.3000`
+   - Creates and checks out `feat/3000`
+   - Copies `.env.local` / `.env`
+   - Runs `npm ci`
+   - Starts `npm run dev` on port `3000`
+4. Jump between worktrees anytime:
+
+   ```bash
+   wt 3000    # go to the new sandbox
+   wt main    # return to the primary repository
+   ```
+
+5. Clean up when done:
+
+   ```bash
+   wt rm 3000
+   ```
+
+## Everyday Commands
+
+| Command          | What it does                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| `wt` / `wt list` | Show tracked worktrees (wrapper over `git worktree list`).                                                |
+| `wt add <name>`  | Create worktree, branch, copy env files, install deps, launch dev server (behavior controlled by config). |
+| `wt <name>`      | Jump straight into an existing worktree directory.                                                        |
+| `wt rm [name]`   | Delete current worktree or the one you name (prompts unless `--yes`).                                     |
+| `wt clean`       | Batch-remove numerically named worktrees and matching `feat/*` branches.                                  |
+| `wt main`        | Output the main repository path.                                                                          |
+| `wt config`      | Inspect or tweak CLI behavior.                                                                            |
+| `wt uninstall`   | Remove the binary and shell hooks.                                                                        |
+| `wt help`        | Show built-in reference for all commands.                                                                 |
+
+## Installation Options
+
+The install script copies the latest `bin/wt` to `~/.local/bin/`, registers shell integration, and prompts if the path is missing from `PATH`.
+
+- Auto-detect (recommended):
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
+  ```
+
+- Force zsh:
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
+  ```
+
+- Force bash:
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell bash
+  ```
+
+After installation reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and run `wt init` inside the repository you want as the default project.
+
+## Configuration Essentials
+
+Settings live in `~/.worktree.sh/config.kv`. Update them with `wt config set`:
 
 ```bash
-# 1. After installation, navigate to your project repository
-cd ~/path/to/your/project
-
-# 2. Initialize wt configuration (record current repository as default project)
-wt init
-
-# 3. Create new worktree (automatically completes the following steps)
-wt add 3000
-# - Creates new worktree in ../project.3000
-# - Creates and switches to feat/3000 branch
-# - Copies .env.local and .env files
-# - Runs npm ci to install dependencies
-# - Starts npm run dev (port 3000 — derived from numeric name or trailing digits, e.g. grid3000 ⇒ 3000)
-# - Automatically switches to new directory
-
-# 4. Switch between different worktrees
-wt 3000        # Switch to 3000 worktree
-wt main        # Return to main repository
-
-# 5. Clean up worktrees no longer needed
-wt rm          # Delete current worktree
-wt rm 3000     # Delete specified worktree
-wt clean       # Batch clean all numerically named worktrees
+wt config set add.serve-dev.enabled false    # Disable auto dev server
+wt config set add.install-deps.enabled true  # Ensure dependencies are installed
+wt config set add.branch-prefix "feature/"   # Customize branch prefixes
+wt config set add.branch-prefix '""'         # Allow branches to match worktree names
+wt config list                               # Inspect current values
 ```
 
-## Command Reference
+Set the `WT_CONFIG_FILE` environment variable if you prefer a custom config path. The CLI reads the key/value file directly—no extra caches or daemons.
 
-Run `wt help` to quickly view all commands:
+## Clean Removal
 
-```text
-$ wt help
-wt - franxx.store worktree assistant
-
-Tracked project directory: /path/to/franxx.store
-
-Usage:
-  wt <command> [args]
-  wt <worktree-name>
-
-Commands:
-  help               Display this help (default command with no arguments)
-  list               List all worktrees (default command with no arguments)
-  add <name>         Create new worktree, copy environment files, install dependencies and start dev server (behavior configurable via wt config)
-  rm [name]          Delete worktree (alias: remove; uses current directory when name is omitted)
-  clean              Clean numeric worktrees (matching prefix + number)
-  main               Output path of main worktree
-  path <name>        Output path of specified worktree
-  config             View or update worktree.sh configuration
-  uninstall          Uninstall wt and clean shell hooks
-  init [--branch <name>] Write current repository defaults to ~/.worktree.sh/config.kv
-  shell-hook <shell> Output shell integration snippet (bash|zsh)
-
-```
-
-## Installation and Usage
-
-### Quick Installation
-
-#### Auto-detect shell (recommended)
+When a worktree is obsolete, prune the directory and branch in one go:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
+wt rm            # Removes current worktree with confirmation
+wt rm 3001 --yes # Removes named worktree without prompting
+wt clean         # Clears all numerically named worktrees
 ```
 
-#### Zsh Users
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
-```
-
-#### Bash Users
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell bash
-```
-
-### Uninstallation
-
-#### Auto-detect shell (recommended)
+To uninstall:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
 ```
 
-#### Zsh Users
+You can also run `wt uninstall`, which deletes the executable, removes shell hooks tagged `# wt shell integration:`, and backs up `~/.worktree.sh` to `~/.worktree.sh.backup.<timestamp>`.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash -s -- --shell zsh
-```
+---
 
-#### Bash Users
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash -s -- --shell bash
-```
-
-You can also run `wt uninstall` from your terminal after installation; it removes the installed binary and cleans shell hooks just like the script.
-
-#### What Does the Installation Script Do?
-
-1. **Download and Install wt Command**
-   - Downloads the latest `bin/wt` from the official repository via GitHub Raw link
-   - Copies script to `~/.local/bin/` (default path)
-   - Checks if `~/.local/bin` is in PATH, prompts to add if not
-
-2. **Configure Shell Integration** (auto-detects by default, can specify with --shell parameter)
-   - Adds wt shell hook to `~/.zshrc` or `~/.bashrc`
-   - Shell hook enables commands like `wt add`, `wt rm`, `wt clean` to auto-switch directories
-   - Added code block is marked with `# wt shell integration:` for easy identification
-
-3. **Next Steps After Installation**
-   - Reload shell configuration: `source ~/.zshrc` or `source ~/.bashrc`
-   - Run `wt init` in your project repository root to initialize configuration
-   - Start using `wt add <name>` to create worktrees
-
-#### What Does the Uninstall Script Do?
-
-1. **Remove wt Command**
-   - Deletes `wt` executable from `~/.local/bin/`
-
-2. **Clean Shell Configuration**
-   - Removes wt-related shell hooks from `~/.zshrc` or `~/.bashrc`
-   - Only removes code blocks starting with `# wt shell integration:`
-
-3. **Preserve User Data**
-   - Backs up `~/.worktree.sh` to `~/.worktree.sh.backup.<timestamp>` (remove manually if you don't need it)
-   - Does not delete created worktree directories
-
-## More Examples
-
-```bash
-# View help
-wt help
-
-# List all worktrees
-wt list
-
-# Create multiple worktrees for different features
-wt add feature-login     # Create feature branch
-wt add 3001             # Create development server (port 3001)
-wt add bugfix-header    # Create fix branch
-
-# Quick switching
-wt feature-login        # Switch to feature-login worktree
-wt 3001                # Switch to 3001 worktree
-wt main                # Return to main repository
-
-# Configuration options
-wt config set add.serve-dev.enabled false      # Disable auto-run dev command
-wt config set add.install-deps.enabled true  # Enable auto-install dependencies
-wt config set add.branch-prefix "feature/"     # Customize branch name prefix
-wt config set add.branch-prefix '""'           # Remove prefix so branches match worktree names
-wt config list                               # View all configuration
-
-# Cleanup work
-wt rm                  # Delete current worktree (with confirmation prompt)
-wt rm 3001 --yes      # Directly delete specified worktree
-wt clean              # Clean all numerically named worktrees
-```
-
-Configuration is stored in `~/.worktree.sh/config.kv`, a key=value file that already includes defaults merged with any overrides. wt reads this file directly, so there is no separate JSON cache or Python step. Set `WT_CONFIG_FILE` if you want to point wt at a different config path.
-
-## Command Reference
-
-| Command         | Behavior                                                                                                                                                                |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wt help`       | Display command help overview.                                                                                                                                          |
-| `wt list`       | List all worktrees (`git worktree list`).                                                                                                                               |
-| `wt add <name>` | • Create new worktree in `../franxx.store.<name>`<br>• Create branch `feat/<name>`<br>• Auto-copy `.env.local` or `.env`<br>• Run `npm ci`<br>• Start `npm run dev` (port from numeric name or trailing digits)<br> |
-| `wt rm [name]`  | Without parameters, delete current worktree (default **Y**, press Enter to confirm);<br> With parameters, directly delete specified worktree.                           |
-| `wt clean`      | Batch clean numerically named worktrees (e.g., `3000`, `1122`), and delete corresponding `feat/*` branches; non-numeric names are preserved.                            |
-| `wt uninstall`  | Remove the installed wt binary and clean shell hooks (same as uninstall.sh).                                                          |
-| `wt main`       | Move to main repository path.                                                                                                                                           |
-| `wt <name>`     | Move to target worktree path.                                                                                                                                           |
+Give worktree.sh a try if you iterate on multiple features in parallel; it keeps your terminals synchronized and your focus on shipping, not setup.
