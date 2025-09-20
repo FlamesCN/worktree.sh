@@ -5,6 +5,7 @@
     "branch": "main"
   },
   "worktreeAdd": {
+    "branchPrefix": "feat/",
     "copyEnv": {
       "enabled": true,
       "files": [

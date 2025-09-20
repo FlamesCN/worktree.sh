@@ -1,50 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.1.0"
+readonly VERSION="0.1.0"
 
-CONFIG_DIR_DEFAULT="$HOME/.worktree.sh"
-CONFIG_FILE_DEFAULT="$CONFIG_DIR_DEFAULT/config.json"
+readonly CONFIG_DIR_DEFAULT="$HOME/.worktree.sh"
+readonly CONFIG_FILE_DEFAULT="$CONFIG_DIR_DEFAULT/config.json"
 
 if [ -n "${WT_CONFIG_FILE:-}" ]; then
-  CONFIG_FILE="$WT_CONFIG_FILE"
+  readonly CONFIG_FILE="$WT_CONFIG_FILE"
 else
-  CONFIG_FILE="$CONFIG_FILE_DEFAULT"
+  readonly CONFIG_FILE="$CONFIG_FILE_DEFAULT"
 fi
 
 if [ -n "${WT_CONFIG_CACHE_FILE:-}" ]; then
-  CONFIG_CACHE_FILE="$WT_CONFIG_CACHE_FILE"
+  readonly CONFIG_CACHE_FILE="$WT_CONFIG_CACHE_FILE"
 else
-  CONFIG_CACHE_FILE="$CONFIG_FILE.cache"
+  readonly CONFIG_CACHE_FILE="$CONFIG_FILE.cache"
 fi
 
-DEFAULT_PROJECT_DIR_DEFAULT="${HOME}/Developer/your-project"
-LOG_SUBDIR_DEFAULT="tmp"
-AUTO_START_DEV_DEFAULT=1
-ADD_INSTALL_DEPS_DEFAULT=1
-ADD_COPY_ENV_DEFAULT=1
-DEFAULT_PROJECT_DIR="$DEFAULT_PROJECT_DIR_DEFAULT"
-WORKTREE_PREFIX_DEFAULT="$(basename "$DEFAULT_PROJECT_DIR_DEFAULT")."
-WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
-BRANCH_PREFIX="${WT_BRANCH_PREFIX:-feat/}"
-LOG_SUBDIR="$LOG_SUBDIR_DEFAULT"
-NPM_BIN="${WT_NPM_BIN:-npm}"
-AUTO_START_DEV="$AUTO_START_DEV_DEFAULT"
-ADD_INSTALL_DEPS="$ADD_INSTALL_DEPS_DEFAULT"
-ADD_COPY_ENV="$ADD_COPY_ENV_DEFAULT"
-COPY_ENV_FILES_DEFAULT=(".env" ".env.local")
-COPY_ENV_FILES=()
-INSTALL_DEPS_COMMAND_DEFAULT=""
-INSTALL_DEPS_COMMAND=""
-SERVE_DEV_COMMAND_DEFAULT=""
-SERVE_DEV_COMMAND=""
-LANGUAGE_DEFAULT="en"
-LANGUAGE="$LANGUAGE_DEFAULT"
-PROJECT_DIR_CONFIGURED=0
+readonly CONFIG_DEFAULT_WORKING_REPO_PATH="${HOME}/Developer/your-project"
+readonly CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX="feat/"
+readonly CONFIG_DEFAULT_SERVE_DEV_LOGGING_PATH="tmp"
+readonly CONFIG_DEFAULT_SERVE_DEV_ENABLED=1
+readonly CONFIG_DEFAULT_INSTALL_DEPS_ENABLED=1
+readonly CONFIG_DEFAULT_COPY_ENV_ENABLED=1
+readonly CONFIG_DEFAULT_INSTALL_DEPS_COMMAND=""
+readonly CONFIG_DEFAULT_SERVE_DEV_COMMAND=""
+readonly CONFIG_DEFAULT_LANGUAGE="en"
+readonly -a CONFIG_DEFAULT_COPY_ENV_FILES=(".env" ".env.local")
 
-SCRIPT_SOURCE="${BASH_SOURCE[0]:-${0}}"
-SCRIPT_DIR=$(cd "$(dirname "$SCRIPT_SOURCE")" 2>/dev/null && pwd || pwd)
-MESSAGES_FILE="$SCRIPT_DIR/messages.sh"
+WORKING_REPO_PATH=""
+WORKTREE_NAME_PREFIX=""
+WORKTREE_BRANCH_PREFIX=""
+SERVE_DEV_LOGGING_PATH=""
+SERVE_DEV_ENABLED=0
+INSTALL_DEPS_ENABLED=0
+COPY_ENV_ENABLED=0
+INSTALL_DEPS_COMMAND=""
+SERVE_DEV_COMMAND=""
+LANGUAGE="$CONFIG_DEFAULT_LANGUAGE"
+WORKING_REPO_PATH_CONFIGURED=0
+COPY_ENV_FILE_SELECTION=()
+
+readonly SCRIPT_SOURCE="${BASH_SOURCE[0]:-${0}}"
+script_dir_tmp=""
+if script_dir_tmp=$(cd "$(dirname "$SCRIPT_SOURCE")" 2>/dev/null && pwd); then
+  :
+else
+  script_dir_tmp=$(pwd)
+fi
+readonly SCRIPT_DIR="$script_dir_tmp"
+readonly MESSAGES_FILE="$SCRIPT_DIR/messages.sh"
 MESSAGES_LOADED=0
 
 ensure_messages_loaded() {
@@ -102,24 +108,22 @@ language_code_to_config_value() {
 }
 
 init_language() {
-  LANGUAGE="$LANGUAGE_DEFAULT"
+  LANGUAGE="$CONFIG_DEFAULT_LANGUAGE"
 
-  local value normalized
+  local value normalized from_config=0
   if value=$(config_get "language" 2>/dev/null); then
+    if normalized=$(normalize_language "$value" 2>/dev/null); then
+      LANGUAGE="$normalized"
+      from_config=1
+    fi
+  fi
+
+  value="${LANG:-}"
+  if [ "$from_config" -eq 0 ] && [ -n "$value" ]; then
     if normalized=$(normalize_language "$value" 2>/dev/null); then
       LANGUAGE="$normalized"
     fi
   fi
-
-  for env_var in WT_LANGUAGE WT_LANG LANG; do
-    value="${!env_var:-}"
-    if [ -n "$value" ]; then
-      if normalized=$(normalize_language "$value" 2>/dev/null); then
-        LANGUAGE="$normalized"
-        break
-      fi
-    fi
-  done
 }
 
 detect_shell_type() {
@@ -174,7 +178,7 @@ parse_bool() {
 }
 
 CONFIG_PYTHON_BIN=""
-CONFIG_KV_DELIM=$'\x1f'
+readonly CONFIG_KV_DELIM=$'\x1f'
 
 CONFIG_CACHE_LOADED=0
 CONFIG_CACHE_KEYS=()
@@ -199,10 +203,11 @@ config_cache_array_append() {
 
   for idx in "${!CONFIG_CACHE_ARRAY_KEYS[@]}"; do
     if [ "${CONFIG_CACHE_ARRAY_KEYS[$idx]}" = "$array_key" ]; then
-      if [ -n "${CONFIG_CACHE_ARRAY_VALUES[$idx]}" ]; then
-        CONFIG_CACHE_ARRAY_VALUES[$idx]+=$'\n'"$array_value"
+      local existing="${CONFIG_CACHE_ARRAY_VALUES[$idx]-}"
+      if [ -n "$existing" ]; then
+        CONFIG_CACHE_ARRAY_VALUES["$idx"]=$(printf '%s\n%s' "$existing" "$array_value")
       else
-        CONFIG_CACHE_ARRAY_VALUES[$idx]="$array_value"
+        CONFIG_CACHE_ARRAY_VALUES["$idx"]="$array_value"
       fi
       return
     fi
@@ -380,7 +385,7 @@ config_get() {
   local key="$1"
   local entry
   entry=$(config_get_entry "$key") || return 1
-  printf '%s\n' "${entry#*${CONFIG_KV_DELIM}}"
+  printf '%s\n' "${entry#*"${CONFIG_KV_DELIM}"}"
 }
 
 config_get_array() {
@@ -612,58 +617,57 @@ json_array_from_list() {
 }
 
 init_settings() {
-  DEFAULT_PROJECT_DIR="$DEFAULT_PROJECT_DIR_DEFAULT"
-  LOG_SUBDIR="$LOG_SUBDIR_DEFAULT"
-  AUTO_START_DEV="$AUTO_START_DEV_DEFAULT"
-  ADD_INSTALL_DEPS="$ADD_INSTALL_DEPS_DEFAULT"
-  ADD_COPY_ENV="$ADD_COPY_ENV_DEFAULT"
-  COPY_ENV_FILES=("${COPY_ENV_FILES_DEFAULT[@]}")
-  INSTALL_DEPS_COMMAND="$INSTALL_DEPS_COMMAND_DEFAULT"
-  SERVE_DEV_COMMAND="$SERVE_DEV_COMMAND_DEFAULT"
-  PROJECT_DIR_CONFIGURED=0
+  WORKING_REPO_PATH="$CONFIG_DEFAULT_WORKING_REPO_PATH"
+  SERVE_DEV_LOGGING_PATH="$CONFIG_DEFAULT_SERVE_DEV_LOGGING_PATH"
+  SERVE_DEV_ENABLED="$CONFIG_DEFAULT_SERVE_DEV_ENABLED"
+  INSTALL_DEPS_ENABLED="$CONFIG_DEFAULT_INSTALL_DEPS_ENABLED"
+  COPY_ENV_ENABLED="$CONFIG_DEFAULT_COPY_ENV_ENABLED"
+  WORKTREE_BRANCH_PREFIX="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
+  COPY_ENV_FILE_SELECTION=("${CONFIG_DEFAULT_COPY_ENV_FILES[@]}")
+  INSTALL_DEPS_COMMAND="$CONFIG_DEFAULT_INSTALL_DEPS_COMMAND"
+  SERVE_DEV_COMMAND="$CONFIG_DEFAULT_SERVE_DEV_COMMAND"
+  WORKING_REPO_PATH_CONFIGURED=0
 
-  WORKTREE_PREFIX_DEFAULT="$(basename "$DEFAULT_PROJECT_DIR")."
-  WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
+  WORKTREE_NAME_PREFIX="$(basename "$WORKING_REPO_PATH")."
 
   local entry type raw_value
 
   if entry=$(config_get_entry "workingRepo.path" 2>/dev/null); then
-    type="${entry%%${CONFIG_KV_DELIM}*}"
-    raw_value="${entry#*${CONFIG_KV_DELIM}}"
+    type="${entry%%"${CONFIG_KV_DELIM}"*}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
     if [ "$type" = "string" ] && [ -n "$raw_value" ]; then
-      DEFAULT_PROJECT_DIR="$raw_value"
-      WORKTREE_PREFIX_DEFAULT="$(basename "$DEFAULT_PROJECT_DIR")."
-      WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
-      PROJECT_DIR_CONFIGURED=1
+      WORKING_REPO_PATH="$raw_value"
+      WORKTREE_NAME_PREFIX="$(basename "$WORKING_REPO_PATH")."
+      WORKING_REPO_PATH_CONFIGURED=1
     fi
   fi
 
   if entry=$(config_get_entry "worktreeAdd.serveDev.loggingPath" 2>/dev/null); then
-    type="${entry%%${CONFIG_KV_DELIM}*}"
-    raw_value="${entry#*${CONFIG_KV_DELIM}}"
+    type="${entry%%"${CONFIG_KV_DELIM}"*}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
     if [ "$type" = "string" ] && [ -n "$raw_value" ]; then
-      LOG_SUBDIR="$raw_value"
+      SERVE_DEV_LOGGING_PATH="$raw_value"
     fi
   fi
 
   if entry=$(config_get_entry "worktreeAdd.serveDev.enabled" 2>/dev/null); then
-    raw_value="${entry#*${CONFIG_KV_DELIM}}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
     if bool=$(parse_bool "$raw_value" 2>/dev/null); then
-      AUTO_START_DEV="$bool"
+      SERVE_DEV_ENABLED="$bool"
     fi
   fi
 
   if entry=$(config_get_entry "worktreeAdd.installDeps.enabled" 2>/dev/null); then
-    raw_value="${entry#*${CONFIG_KV_DELIM}}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
     if bool=$(parse_bool "$raw_value" 2>/dev/null); then
-      ADD_INSTALL_DEPS="$bool"
+      INSTALL_DEPS_ENABLED="$bool"
     fi
   fi
 
   if entry=$(config_get_entry "worktreeAdd.copyEnv.enabled" 2>/dev/null); then
-    raw_value="${entry#*${CONFIG_KV_DELIM}}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
     if bool=$(parse_bool "$raw_value" 2>/dev/null); then
-      ADD_COPY_ENV="$bool"
+      COPY_ENV_ENABLED="$bool"
     fi
   fi
 
@@ -673,49 +677,31 @@ init_settings() {
   done < <(config_get_array "worktreeAdd.copyEnv.files" 2>/dev/null || true)
 
   if [ ${#copy_files[@]} -gt 0 ]; then
-    COPY_ENV_FILES=("${copy_files[@]}")
+    COPY_ENV_FILE_SELECTION=("${copy_files[@]}")
+  fi
+
+  if entry=$(config_get_entry "worktreeAdd.branchPrefix" 2>/dev/null); then
+    type="${entry%%"${CONFIG_KV_DELIM}"*}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
+    if [ "$type" = "string" ]; then
+      WORKTREE_BRANCH_PREFIX="$raw_value"
+    fi
   fi
 
   if entry=$(config_get_entry "worktreeAdd.installDeps.command" 2>/dev/null); then
-    type="${entry%%${CONFIG_KV_DELIM}*}"
-    raw_value="${entry#*${CONFIG_KV_DELIM}}"
+    type="${entry%%"${CONFIG_KV_DELIM}"*}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
     if [ "$type" = "string" ] && [ -n "$raw_value" ]; then
       INSTALL_DEPS_COMMAND="$raw_value"
     fi
   fi
 
   if entry=$(config_get_entry "worktreeAdd.serveDev.command" 2>/dev/null); then
-    type="${entry%%${CONFIG_KV_DELIM}*}"
-    raw_value="${entry#*${CONFIG_KV_DELIM}}"
+    type="${entry%%"${CONFIG_KV_DELIM}"*}"
+    raw_value="${entry#*"${CONFIG_KV_DELIM}"}"
     if [ "$type" = "string" ] && [ -n "$raw_value" ]; then
       SERVE_DEV_COMMAND="$raw_value"
     fi
-  fi
-
-  if [ -n "${WT_LOG_SUBDIR:-}" ]; then
-    LOG_SUBDIR="$WT_LOG_SUBDIR"
-  fi
-
-  if [ -n "${WT_ADD_AUTO_START_DEV:-}" ]; then
-    if bool=$(parse_bool "$WT_ADD_AUTO_START_DEV" 2>/dev/null); then
-      AUTO_START_DEV="$bool"
-    fi
-  fi
-
-  if [ -n "${WT_ADD_INSTALL_DEPS:-}" ]; then
-    if bool=$(parse_bool "$WT_ADD_INSTALL_DEPS" 2>/dev/null); then
-      ADD_INSTALL_DEPS="$bool"
-    fi
-  fi
-
-  if [ -n "${WT_ADD_COPY_ENV:-}" ]; then
-    if bool=$(parse_bool "$WT_ADD_COPY_ENV" 2>/dev/null); then
-      ADD_COPY_ENV="$bool"
-    fi
-  fi
-
-  if [ -z "${WT_WORKTREE_PREFIX:-}" ]; then
-    WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
   fi
 
   init_language
@@ -731,19 +717,13 @@ die() {
 }
 
 usage() {
-  local project_dir_box_display="$DEFAULT_PROJECT_DIR"
-  local project_dir_display="$DEFAULT_PROJECT_DIR"
+  local project_dir_box_display="$WORKING_REPO_PATH"
+  local project_dir_display="$WORKING_REPO_PATH"
   local dir_text_en
   local dir_text_zh
   local should_highlight=0
 
-  if [ -n "${WT_PROJECT_DIR:-}" ]; then
-    project_dir_box_display="$WT_PROJECT_DIR"
-    project_dir_display="$WT_PROJECT_DIR"
-    dir_text_en="Project directory: ${project_dir_box_display}"
-    dir_text_zh="项目目录: ${project_dir_box_display}"
-    should_highlight=1
-  elif [ "$PROJECT_DIR_CONFIGURED" -eq 1 ]; then
+  if [ "$WORKING_REPO_PATH_CONFIGURED" -eq 1 ]; then
     dir_text_en="Project directory: ${project_dir_box_display}"
     dir_text_zh="项目目录: ${project_dir_box_display}"
     should_highlight=1
@@ -858,14 +838,10 @@ resolve_project() {
   command -v git >/dev/null 2>&1 || die "$(msg git_required)"
 
   if [ -z "$PROJECT_DIR" ]; then
-    if [ -n "${WT_PROJECT_DIR:-}" ]; then
-      PROJECT_DIR="$WT_PROJECT_DIR"
-    else
-      if [ "$PROJECT_DIR_CONFIGURED" -ne 1 ]; then
-        die "$(msg project_dir_unset)"
-      fi
-      PROJECT_DIR="$DEFAULT_PROJECT_DIR"
+    if [ "$WORKING_REPO_PATH_CONFIGURED" -ne 1 ]; then
+      die "$(msg project_dir_unset)"
     fi
+    PROJECT_DIR="$WORKING_REPO_PATH"
   fi
 
   PROJECT_DIR_ABS=$(cd "$PROJECT_DIR" 2>/dev/null && pwd) || die "$(msg project_not_found "$PROJECT_DIR")"
@@ -874,22 +850,49 @@ resolve_project() {
 
 worktree_path_for() {
   local name="$1"
-  printf '%s/%s%s\n' "$PROJECT_PARENT" "$WORKTREE_PREFIX" "$name"
+  printf '%s/%s%s\n' "$PROJECT_PARENT" "$WORKTREE_NAME_PREFIX" "$name"
+}
+
+worktree_ref_exists() {
+  local target="$1"
+  local line
+
+  while IFS= read -r line; do
+    case "$line" in
+      worktree\ *)
+        local candidate="${line#worktree }"
+        if [ "$candidate" = "$target" ]; then
+          return 0
+        fi
+        ;;
+    esac
+  done < <(git_project worktree list --porcelain)
+
+  return 1
 }
 
 branch_for() {
   local name="$1"
-  printf '%s%s\n' "$BRANCH_PREFIX" "$name"
+  printf '%s%s\n' "$WORKTREE_BRANCH_PREFIX" "$name"
 }
 
 port_from_name() {
   local name="$1"
-  if [[ "$name" =~ ^[0-9]+$ ]]; then
-    if [ "$name" -ge 1024 ] && [ "$name" -le 65535 ]; then
-      printf '%s\n' "$name"
+  local digits=""
+
+  if [[ "$name" =~ ^([0-9]+)$ ]]; then
+    digits="${BASH_REMATCH[1]}"
+  elif [[ "$name" =~ ([0-9]+)$ ]]; then
+    digits="${BASH_REMATCH[1]}"
+  fi
+
+  if [ -n "$digits" ]; then
+    if [ "$digits" -ge 1024 ] && [ "$digits" -le 65535 ]; then
+      printf '%s\n' "$digits"
       return 0
     fi
   fi
+
   printf ''
 }
 
@@ -961,7 +964,7 @@ command_slug_from_line() {
   fi
 
   local slug
-  slug=$(printf '%s' "$line" | tr '[:space:]/\\' '____')
+  slug=$(printf '%s' "$line" | tr "[:space:]/\\" '_')
   slug=${slug//[^A-Za-z0-9._-]/_}
   slug=${slug#_}
   slug=${slug%%_}
@@ -992,10 +995,10 @@ infer_install_command() {
 
   if [ -f "$worktree_path/package.json" ]; then
     if [ -f "$worktree_path/package-lock.json" ] || [ -f "$worktree_path/npm-shrinkwrap.json" ]; then
-      printf '%s ci\n' "$NPM_BIN"
+      printf 'npm ci\n'
       return 0
     fi
-    printf '%s install\n' "$NPM_BIN"
+    printf 'npm install\n'
     return 0
   fi
 
@@ -1042,11 +1045,11 @@ infer_serve_command() {
 
   if [ -f "$worktree_path/package.json" ]; then
     if has_package_json_script "$worktree_path" "dev"; then
-      printf '%s run dev\n' "$NPM_BIN"
+      printf 'npm run dev\n'
       return 0
     fi
     if has_package_json_script "$worktree_path" "start"; then
-      printf '%s run start\n' "$NPM_BIN"
+      printf 'npm run start\n'
       return 0
     fi
   fi
@@ -1143,15 +1146,15 @@ start_dev_server() {
     return
   fi
 
-  mkdir -p "$worktree_path/$LOG_SUBDIR"
+  mkdir -p "$worktree_path/$SERVE_DEV_LOGGING_PATH"
   local slug
   slug=$(command_slug_from_line "$command_line")
 
   local log_file
   if [ -n "$port" ]; then
-    log_file="$worktree_path/$LOG_SUBDIR/${slug}-${port}.log"
+    log_file="$worktree_path/$SERVE_DEV_LOGGING_PATH/${slug}-${port}.log"
   else
-    log_file="$worktree_path/$LOG_SUBDIR/${slug}.log"
+    log_file="$worktree_path/$SERVE_DEV_LOGGING_PATH/${slug}.log"
   fi
   local pid_file="${log_file}.pid"
 
@@ -1292,9 +1295,9 @@ cmd_add() {
 
   [ -n "$name" ] || die "$(msg add_requires_name)"
 
-  local run_install="$ADD_INSTALL_DEPS"
-  local run_dev="$AUTO_START_DEV"
-  local copy_env="$ADD_COPY_ENV"
+  local run_install="$INSTALL_DEPS_ENABLED"
+  local run_dev="$SERVE_DEV_ENABLED"
+  local copy_env="$COPY_ENV_ENABLED"
   local branch=""
   local numeric_name=""
   local effective_port=""
@@ -1360,9 +1363,9 @@ cmd_add() {
   info "$(msg worktree_created)"
 
   if [ "$copy_env" -eq 1 ]; then
-    if [ ${#COPY_ENV_FILES[@]} -gt 0 ]; then
+    if [ ${#COPY_ENV_FILE_SELECTION[@]} -gt 0 ]; then
       local env_file
-      for env_file in "${COPY_ENV_FILES[@]}"; do
+      for env_file in "${COPY_ENV_FILE_SELECTION[@]}"; do
         [ -n "$env_file" ] || continue
         copy_env_file "$env_file" "$worktree_path"
       done
@@ -1401,7 +1404,8 @@ cmd_add() {
 
 config_print_effective() {
   printf 'language=%s\n' "$LANGUAGE"
-  printf 'workingRepo.path=%s\n' "$DEFAULT_PROJECT_DIR"
+  printf 'workingRepo.path=%s\n' "$WORKING_REPO_PATH"
+  printf 'worktreeAdd.branchPrefix=%s\n' "$WORKTREE_BRANCH_PREFIX"
 
   local branch_value
   if branch_value=$(config_get "workingRepo.branch" 2>/dev/null); then
@@ -1410,27 +1414,27 @@ config_print_effective() {
     fi
   fi
 
-  if [ "$ADD_COPY_ENV" -eq 1 ]; then
+  if [ "$COPY_ENV_ENABLED" -eq 1 ]; then
     printf 'worktreeAdd.copyEnv.enabled=true\n'
   else
     printf 'worktreeAdd.copyEnv.enabled=false\n'
   fi
-  printf 'worktreeAdd.copyEnv.files=%s\n' "$(json_array_from_list "${COPY_ENV_FILES[@]}")"
+  printf 'worktreeAdd.copyEnv.files=%s\n' "$(json_array_from_list "${COPY_ENV_FILE_SELECTION[@]}")"
 
-  if [ "$ADD_INSTALL_DEPS" -eq 1 ]; then
+  if [ "$INSTALL_DEPS_ENABLED" -eq 1 ]; then
     printf 'worktreeAdd.installDeps.enabled=true\n'
   else
     printf 'worktreeAdd.installDeps.enabled=false\n'
   fi
   printf 'worktreeAdd.installDeps.command=%s\n' "$INSTALL_DEPS_COMMAND"
 
-  if [ "$AUTO_START_DEV" -eq 1 ]; then
+  if [ "$SERVE_DEV_ENABLED" -eq 1 ]; then
     printf 'worktreeAdd.serveDev.enabled=true\n'
   else
     printf 'worktreeAdd.serveDev.enabled=false\n'
   fi
   printf 'worktreeAdd.serveDev.command=%s\n' "$SERVE_DEV_COMMAND"
-  printf 'worktreeAdd.serveDev.loggingPath=%s\n' "$LOG_SUBDIR"
+  printf 'worktreeAdd.serveDev.loggingPath=%s\n' "$SERVE_DEV_LOGGING_PATH"
 
   while IFS="$CONFIG_KV_DELIM" read -r key type raw; do
     case "$key" in
@@ -1443,7 +1447,8 @@ config_print_effective() {
       worktreeAdd.installDeps.command|\
       worktreeAdd.serveDev.enabled|\
       worktreeAdd.serveDev.command|\
-      worktreeAdd.serveDev.loggingPath)
+      worktreeAdd.serveDev.loggingPath|\
+      worktreeAdd.branchPrefix)
         continue
         ;;
     esac
@@ -1472,6 +1477,7 @@ wt config - 查看或更新 worktree.sh 配置
   language                        CLI 显示语言（en|zh，默认 en）
   workingRepo.path                默认维护的仓库根目录（由 wt init 设置）
   workingRepo.branch              新 worktree 的默认分支（可选）
+  worktreeAdd.branchPrefix        新 worktree 分支名前缀（默认 feat/）
   worktreeAdd.copyEnv.enabled     是否在 wt add 时复制环境文件
   worktreeAdd.copyEnv.files       被复制的环境文件列表（JSON 数组）
   worktreeAdd.installDeps.enabled 是否在 wt add 时安装依赖
@@ -1481,7 +1487,7 @@ wt config - 查看或更新 worktree.sh 配置
   worktreeAdd.serveDev.loggingPath Dev 服务日志所在子目录（默认: tmp）
 
 说明:
-  单次执行可通过环境变量（例如 WT_PROJECT_DIR）覆盖配置。
+  配置以 ~/.worktree.sh/config.json 为准，不再支持通过环境变量临时覆盖。
   布尔值接受 true/false/1/0/yes/no/on/off。
 CONFIG_USAGE_ZH
       ;;
@@ -1503,6 +1509,7 @@ Supported keys:
   language                        CLI language (en or zh; default: en)
   workingRepo.path                Root directory of the tracked repository (set by wt init)
   workingRepo.branch              Default branch for new worktrees (optional)
+  worktreeAdd.branchPrefix        Branch name prefix used for new worktrees (default: feat/)
   worktreeAdd.copyEnv.enabled     Whether wt add copies environment files
   worktreeAdd.copyEnv.files       Environment files to copy (JSON array)
   worktreeAdd.installDeps.enabled Whether wt add installs dependencies
@@ -1512,7 +1519,7 @@ Supported keys:
   worktreeAdd.serveDev.loggingPath Subdirectory for dev logs (default: tmp)
 
 Notes:
-  Environment variables (like WT_PROJECT_DIR) override config for a single invocation.
+  Runtime settings come solely from ~/.worktree.sh/config.json; environment overrides are ignored.
   Boolean values accept true/false/1/0/yes/no/on/off.
 CONFIG_USAGE_EN
       ;;
@@ -1992,7 +1999,9 @@ cmd_remove() {
 
   if [ -n "$name" ]; then
     target_path=$(worktree_path_for "$name")
-    [ -d "$target_path" ] || die "$(msg worktree_not_found "$name")"
+    if [ ! -d "$target_path" ] && ! worktree_ref_exists "$target_path"; then
+      die "$(msg worktree_not_found "$name")"
+    fi
     if [ "$current_abs" = "$target_path" ]; then
       removing_current=1
     fi
@@ -2002,10 +2011,10 @@ cmd_remove() {
     fi
     local current_base
     current_base=$(basename "$current_abs")
-    if [[ "$current_base" != "$WORKTREE_PREFIX"* ]]; then
+    if [[ "$current_base" != "$WORKTREE_NAME_PREFIX"* ]]; then
       die "$(msg specify_worktree_or_inside)"
     fi
-    name="${current_base#$WORKTREE_PREFIX}"
+    name="${current_base#"$WORKTREE_NAME_PREFIX"}"
     target_path="$current_abs"
     removing_current=1
 
@@ -2020,7 +2029,21 @@ cmd_remove() {
   fi
 
   info "$(msg removing_worktree "$target_path")"
-  git_project worktree remove "$target_path" --force >&2 || die "$(msg remove_failed)"
+  local removal_succeeded=0
+  if git_project worktree remove "$target_path" --force >&2; then
+    removal_succeeded=1
+  else
+    if [ ! -d "$target_path" ]; then
+      git_project worktree prune --expire now >&2 || true
+      if ! worktree_ref_exists "$target_path"; then
+        removal_succeeded=1
+      fi
+    fi
+  fi
+
+  if [ "$removal_succeeded" -eq 0 ]; then
+    die "$(msg remove_failed)"
+  fi
 
   local branch
   branch=$(branch_for "$name")
@@ -2048,8 +2071,8 @@ cmd_clean() {
   while IFS= read -r worktree_path; do
     local base
     base=$(basename "$worktree_path")
-    if [[ "$base" == "$WORKTREE_PREFIX"* ]]; then
-      local suffix="${base#$WORKTREE_PREFIX}"
+    if [[ "$base" == "$WORKTREE_NAME_PREFIX"* ]]; then
+      local suffix="${base#"$WORKTREE_NAME_PREFIX"}"
       if [[ "$suffix" =~ ^[0-9]+$ ]]; then
         info "$(msg cleaning_worktree "$suffix")"
         git_project worktree remove "$worktree_path" --force >&2 || true

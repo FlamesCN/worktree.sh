@@ -23,7 +23,7 @@ wt add 3000
 # - Creates and switches to feat/3000 branch
 # - Copies .env.local and .env files
 # - Runs npm ci to install dependencies
-# - Starts npm run dev (port 3000)
+# - Starts npm run dev (port 3000 — derived from numeric name or trailing digits, e.g. grid3000 ⇒ 3000)
 # - Automatically switches to new directory
 
 # 4. Switch between different worktrees
@@ -161,6 +161,8 @@ wt main                # Return to main repository
 # Configuration options
 wt config set worktreeAdd.serveDev.enabled false      # Disable auto-run dev command
 wt config set worktreeAdd.installDeps.enabled true  # Enable auto-install dependencies
+wt config set worktreeAdd.branchPrefix "feature/"     # Customize branch name prefix
+wt config set worktreeAdd.branchPrefix '""'           # Remove prefix so branches match worktree names
 wt config list                               # View all configuration
 
 # Cleanup work
@@ -169,13 +171,15 @@ wt rm 3001 --yes      # Directly delete specified worktree
 wt clean              # Clean all numerically named worktrees
 ```
 
+Configuration is now sourced exclusively from `~/.worktree.sh/config.json`. Temporary `WT_*` environment overrides are no longer supported.
+
 ## Command Reference
 
 | Command         | Behavior                                                                                                                                                                |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `wt help`       | Display command help overview.                                                                                                                                          |
 | `wt list`       | List all worktrees (`git worktree list`).                                                                                                                               |
-| `wt add <name>` | • Create new worktree in `../franxx.store.<name>`<br>• Create branch `feat/<name>`<br>• Auto-copy `.env.local` or `.env`<br>• Run `npm ci`<br>• Start `npm run dev`<br> |
+| `wt add <name>` | • Create new worktree in `../franxx.store.<name>`<br>• Create branch `feat/<name>`<br>• Auto-copy `.env.local` or `.env`<br>• Run `npm ci`<br>• Start `npm run dev` (port from numeric name or trailing digits)<br> |
 | `wt rm [name]`  | Without parameters, delete current worktree (default **Y**, press Enter to confirm);<br> With parameters, directly delete specified worktree.                           |
 | `wt clean`      | Batch clean numerically named worktrees (e.g., `3000`, `1122`), and delete corresponding `feat/*` branches; non-numeric names are preserved.                            |
 | `wt uninstall`  | Remove the installed wt binary and clean shell hooks (same as uninstall.sh).                                                          |

@@ -21,7 +21,7 @@ wt add 3000
 # - 创建并切换到 feat/3000 分支
 # - 复制 .env.local 和 .env 文件
 # - 运行 npm ci 安装依赖
-# - 启动 npm run dev（端口 3000）
+# - 启动 npm run dev（端口 3000——来自数字名称或末尾数字，例如 grid3000 ⇒ 3000）
 # - 自动切换到新目录
 
 # 4. 在不同 worktree 间切换
@@ -159,6 +159,8 @@ wt main                # 回到主仓库
 # 配置选项
 wt config set worktreeAdd.serveDev.enabled false      # 关闭自动启动开发命令
 wt config set worktreeAdd.installDeps.enabled true  # 开启自动安装依赖
+wt config set worktreeAdd.branchPrefix "feature/"     # 自定义新建分支的前缀
+wt config set worktreeAdd.branchPrefix '""'           # 取消前缀，使分支名与 worktree 一致
 wt config list                               # 查看所有配置
 
 # 清理工作
@@ -167,13 +169,15 @@ wt rm 3001 --yes      # 直接删除指定 worktree
 wt clean              # 清理所有数字命名的 worktree
 ```
 
+配置仅来源于 `~/.worktree.sh/config.json`，`WT_*` 环境变量已不再支持临时覆盖。
+
 ## 命令参考
 
 | 命令            | 行为                                                                                                                                                          |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `wt help`       | 显示命令帮助概览。                                                                                                                                            |
 | `wt list`       | 列出所有 worktree（`git worktree list`）。                                                                                                                    |
-| `wt add <name>` | • 在 `../franxx.store.<name>` 创建新 worktree<br>• 新建分支 `feat/<name>`<br>• 自动复制 `.env.local` 或 `.env`<br>• 执行 `npm ci`<br>• 启动 `npm run dev`<br> |
+| `wt add <name>` | • 在 `../franxx.store.<name>` 创建新 worktree<br>• 新建分支 `feat/<name>`<br>• 自动复制 `.env.local` 或 `.env`<br>• 执行 `npm ci`<br>• 启动 `npm run dev`（端口取整型名称或末尾数字）<br> |
 | `wt rm [name]`  | 不带参数时删除当前 worktree（默认 **Y**，可回车确认）；<br> 带参数时直接删除指定 worktree。                                                                   |
 | `wt clean`      | 批量清理数字命名的 worktree（如 `3000`、`1122`），并删除对应 `feat/*` 分支；非数字名称保留。                                                                  |
 | `wt uninstall`  | 卸载 wt 命令并清理 shell 集成（等同于 uninstall.sh）。                                                                             |
