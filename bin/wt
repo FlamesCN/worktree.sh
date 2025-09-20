@@ -852,6 +852,7 @@ usage() {
   project_basename=$(basename "$DEFAULT_PROJECT_DIR")
 
   local project_dir_display="$DEFAULT_PROJECT_DIR"
+  local project_dir_box_display="$DEFAULT_PROJECT_DIR"
   if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
     local ansi_cyan ansi_bold ansi_reset
     ansi_cyan=$(tput setaf 6 2>/dev/null || true)
@@ -862,67 +863,84 @@ usage() {
     fi
   fi
 
+  local dir_text_en="Project directory: ${project_dir_box_display}"
+  local dir_text_zh="项目目录: ${project_dir_box_display}"
+
+  local banner_width_en=${#dir_text_en}
+  local banner_width_zh=${#dir_text_zh}
+
+  if [ "$banner_width_en" -lt 40 ]; then
+    banner_width_en=40
+  fi
+  if [ "$banner_width_zh" -lt 40 ]; then
+    banner_width_zh=40
+  fi
+
+  local fill_en fill_zh
+  fill_en=$(printf '%*s' "$banner_width_en" '')
+  fill_en=${fill_en// /─}
+  fill_zh=$(printf '%*s' "$banner_width_zh" '')
+  fill_zh=${fill_zh// /─}
+
+  local dir_top_en dir_mid_en dir_bottom_en dir_top_zh dir_mid_zh dir_bottom_zh
+  dir_top_en="${fill_en}╮"
+  dir_mid_en=$(printf '%-*s│' "$banner_width_en" "$dir_text_en")
+  dir_bottom_en="${fill_en}╯"
+
+  dir_top_zh="${fill_zh}╮"
+  dir_mid_zh=$(printf '%-*s│' "$banner_width_zh" "$dir_text_zh")
+  dir_bottom_zh="${fill_zh}╯"
+
+  local dir_banner_en dir_banner_zh
+  dir_banner_en=$(printf '%s\n%s\n%s' "$dir_top_en" "$dir_mid_en" "$dir_bottom_en")
+  dir_banner_zh=$(printf '%s\n%s\n%s' "$dir_top_zh" "$dir_mid_zh" "$dir_bottom_zh")
+
+  if [ "$project_dir_display" != "$project_dir_box_display" ]; then
+    dir_banner_en=${dir_banner_en//Project directory: $project_dir_box_display/Project directory: $project_dir_display}
+    dir_banner_zh=${dir_banner_zh//项目目录: $project_dir_box_display/项目目录: $project_dir_display}
+  fi
+
   case "$LANGUAGE" in
     zh)
       cat <<USAGE_ZH
-wt - ${project_basename} worktree 助手
-
-跟踪的项目目录: $project_dir_display
 
 用法:
-  wt <command> [args]
-  wt <worktree-name>
+  wt <command> [参数]        执行 wt 子命令
+  wt <worktree-name>         直接跳转到对应 worktree
 
-命令:
-  help               显示此帮助（无参数时的默认命令）
-  list               列出所有 worktree（无参数时的默认命令）
-  add <name>         创建新 worktree，复制环境文件、安装依赖并启动 dev server（行为可通过 wt config 配置）
-  rm [name]          删除 worktree（别名: remove；省略 name 时使用当前目录）
+核心命令:
+  init               将当前仓库设为 wt 的默认项目
+  add <name>         创建新 worktree，复制环境文件、安装依赖并启动 dev server（可通过 wt config 调整）
+  main               跳转到主 worktree
+  list               列出所有 worktree
+  rm [name]          删除 worktree（省略 name 时使用当前目录）
   clean              清理数字 worktree（匹配前缀 + 数字）
-  main               输出主 worktree 的路径
-  path <name>        输出指定 worktree 的路径
   config             查看或更新 wt-cli 配置
-  init [--branch <name>] 将当前仓库默认值写入 ~/.wt-cli
-  shell-hook <shell> 输出 shell 集成片段 (bash|zsh)
+  help               显示此帮助
 
-示例:
-  wt list
-  wt add 12345
-  wt init
-  wt shell-hook zsh
-  wt 3000
-  wt rm 12345 --yes
+${dir_banner_zh}
+
 USAGE_ZH
       ;;
     *)
       cat <<USAGE_EN
-wt - ${project_basename} worktree helper
-
-Tracked project directory: $project_dir_display
 
 Usage:
-  wt <command> [args]
-  wt <worktree-name>
+  wt <command> [args]        Run a wt subcommand
+  wt <worktree-name>         Jump straight to a worktree
 
-Commands:
-  help               Show this help message (default when no command is provided)
-  list               List worktrees (default when no command is provided)
-  add <name>         Create a new worktree, copy env files, install deps, start dev server (configurable via wt config)
-  rm [name]          Remove a worktree (alias: remove; current directory if name omitted)
+Core commands:
+  init               Remember this repository as wt's default project
+  add <name>         Create a new worktree, copy env files, install deps, start dev server (tunable via wt config)
+  main               Jump to the main worktree
+  list               List all worktrees
+  rm [name]          Remove a worktree (current directory if name omitted)
   clean              Remove numeric worktrees (matching prefix + digits)
-  main               Print the path of the main worktree
-  path <name>        Print the path to a worktree
   config             Inspect or update wt-cli configuration
-  init [--branch <name>] Capture current repo defaults into ~/.wt-cli
-  shell-hook <shell> Print shell integration snippet (bash|zsh)
+  help               Show this guide
 
-Examples:
-  wt list
-  wt add 12345
-  wt init
-  wt shell-hook zsh
-  wt 3000
-  wt rm 12345 --yes
+${dir_banner_en}
+
 USAGE_EN
       ;;
   esac
