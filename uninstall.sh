@@ -175,6 +175,12 @@ main() {
     printf 'wt not found at %s (already removed?)\n' "$wt_bin"
   fi
 
+  local wt_messages="$prefix/messages.sh"
+  if [ -f "$wt_messages" ]; then
+    rm -f "$wt_messages"
+    printf 'Removed wt messages from %s\n' "$wt_messages"
+  fi
+
   # Remove shell hook if requested
   if [ "$shell_type" != "none" ]; then
     remove_shell_hook "$shell_type"

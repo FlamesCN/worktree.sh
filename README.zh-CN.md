@@ -57,7 +57,7 @@ wt - franxx.store worktree 助手
   main               输出主 worktree 的路径
   path <name>        输出指定 worktree 的路径
   config             查看或更新 wt-cli 配置
-  init [--branch <name>] 将当前仓库默认值写入 ~/.wt-cli
+  init [--branch <name>] 将当前仓库默认值写入 ~/.wt-cli/config.json
   shell-hook <shell> 输出 shell 集成片段 (bash|zsh)
 
 ```
@@ -131,7 +131,7 @@ curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | ba
    - 只删除以 `# wt shell integration:` 开头的代码块
 
 3. **保留用户数据**
-   - 不会删除 `~/.wt-cli` 配置文件（需手动删除）
+  - 不会删除 `~/.wt-cli/config.json` 配置文件（需手动删除）
    - 不会删除已创建的 worktree 目录
 
 ## 更多示例
@@ -154,8 +154,8 @@ wt 3001                # 切换到 3001 worktree
 wt main                # 回到主仓库
 
 # 配置选项
-wt config set add.auto_start_dev false      # 关闭自动启动 dev server
-wt config set add.install_dependencies true  # 开启自动安装依赖
+wt config set worktreeAdd.serveDev.enabled false      # 关闭自动启动开发命令
+wt config set worktreeAdd.installDeps.enabled true  # 开启自动安装依赖
 wt config list                               # 查看所有配置
 
 # 清理工作

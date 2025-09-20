@@ -59,7 +59,7 @@ Commands:
   main               Output path of main worktree
   path <name>        Output path of specified worktree
   config             View or update wt-cli configuration
-  init [--branch <name>] Write current repository defaults to ~/.wt-cli
+  init [--branch <name>] Write current repository defaults to ~/.wt-cli/config.json
   shell-hook <shell> Output shell integration snippet (bash|zsh)
 
 ```
@@ -133,7 +133,7 @@ curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | ba
    - Only removes code blocks starting with `# wt shell integration:`
 
 3. **Preserve User Data**
-   - Does not delete `~/.wt-cli` configuration file (manual deletion required)
+  - Does not delete `~/.wt-cli/config.json` configuration file (manual deletion required)
    - Does not delete created worktree directories
 
 ## More Examples
@@ -156,8 +156,8 @@ wt 3001                # Switch to 3001 worktree
 wt main                # Return to main repository
 
 # Configuration options
-wt config set add.auto_start_dev false      # Disable auto-start dev server
-wt config set add.install_dependencies true  # Enable auto-install dependencies
+wt config set worktreeAdd.serveDev.enabled false      # Disable auto-run dev command
+wt config set worktreeAdd.installDeps.enabled true  # Enable auto-install dependencies
 wt config list                               # View all configuration
 
 # Cleanup work

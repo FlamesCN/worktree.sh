@@ -1,0 +1,25 @@
+{
+  "language": "en",
+  "workingRepo": {
+    "path": "/Users/you/Developer/your-project",
+    "branch": "main"
+  },
+  "worktreeAdd": {
+    "copyEnv": {
+      "enabled": true,
+      "files": [
+        ".env",
+        ".env_local"
+      ]
+    },
+    "installDeps": {
+      "enabled": true,
+      "command": "npm ci"
+    },
+    "serveDev": {
+      "enabled": true,
+      "command": "npm run dev",
+      "loggingPath": "tmp"
+    }
+  }
+}

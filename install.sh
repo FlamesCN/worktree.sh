@@ -143,10 +143,14 @@ main() {
   script_dir=$(cd "$script_path" 2>/dev/null && pwd || true)
 
   local source_file=""
+  local messages_source=""
   local tmpdir=""
 
   if [ -n "$script_dir" ] && [ -f "$script_dir/bin/wt" ]; then
     source_file="$script_dir/bin/wt"
+    if [ -f "$script_dir/bin/messages.sh" ]; then
+      messages_source="$script_dir/bin/messages.sh"
+    fi
   else
     command -v curl >/dev/null 2>&1 || die "curl is required"
     tmpdir=$(mktemp -d)
@@ -156,12 +160,25 @@ main() {
     printf 'Downloading wt from %s...\n' "$source_url"
     curl -fsSL "$source_url" -o "$tmpdir/wt" || die "failed to download wt from $source_url"
     source_file="$tmpdir/wt"
+
+    local messages_url="https://raw.githubusercontent.com/notdp/wt-cli/main/bin/messages.sh"
+    printf 'Downloading wt messages from %s...\n' "$messages_url"
+    if curl -fsSL "$messages_url" -o "$tmpdir/messages.sh"; then
+      messages_source="$tmpdir/messages.sh"
+    else
+      printf 'Warning: failed to download messages file from %s\n' "$messages_url" >&2
+    fi
   fi
 
   # Install wt binary
   install -d "$prefix"
   install -m 0755 "$source_file" "$prefix/wt"
   printf 'Installed wt to %s\n' "$prefix/wt"
+
+  if [ -n "$messages_source" ] && [ -f "$messages_source" ]; then
+    install -m 0644 "$messages_source" "$prefix/messages.sh"
+    printf 'Installed messages to %s\n' "$prefix/messages.sh"
+  fi
 
   # Check PATH
   if ! path_has "$prefix"; then
@@ -181,7 +198,7 @@ main() {
   if [ "$shell_type" = "none" ]; then
     printf '  2) Optionally add shell hook manually: `wt shell-hook zsh >> ~/.zshrc` or `wt shell-hook bash >> ~/.bashrc`\n'
   fi
-  printf 'Configuration is stored in %s (TOML).\n' "${WT_CONFIG_FILE:-$HOME/.wt-cli}"
+  printf 'Configuration is stored in %s (JSON).\n' "${WT_CONFIG_FILE:-$HOME/.wt-cli/config.json}"
 }
 
 main "$@"
