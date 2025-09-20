@@ -1,4 +1,4 @@
-# wt-cli
+# worktree.sh
 
 As Claude Code's intelligence recovers and gpt5 high in Codex shows high IQ, I'm increasingly inclined to use git worktree for parallel development. However, the repetitive work of creating branches, setting up worktrees, copying environment variables, installing dependencies, and starting services increases the difficulty of using worktrees.
 
@@ -58,8 +58,9 @@ Commands:
   clean              Clean numeric worktrees (matching prefix + number)
   main               Output path of main worktree
   path <name>        Output path of specified worktree
-  config             View or update wt-cli configuration
-  init [--branch <name>] Write current repository defaults to ~/.wt-cli/config.json
+  config             View or update worktree.sh configuration
+  uninstall          Uninstall wt and clean shell hooks
+  init [--branch <name>] Write current repository defaults to ~/.worktree.sh/config.json
   shell-hook <shell> Output shell integration snippet (bash|zsh)
 
 ```
@@ -71,19 +72,19 @@ Commands:
 #### Auto-detect shell (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
 ```
 
 #### Zsh Users
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash -s -- --shell zsh
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
 ```
 
 #### Bash Users
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash -s -- --shell bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell bash
 ```
 
 ### Uninstallation
@@ -91,20 +92,22 @@ curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash
 #### Auto-detect shell (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
 ```
 
 #### Zsh Users
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | bash -s -- --shell zsh
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash -s -- --shell zsh
 ```
 
 #### Bash Users
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | bash -s -- --shell bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash -s -- --shell bash
 ```
+
+You can also run `wt uninstall` from your terminal after installation; it removes the installed binary and cleans shell hooks just like the script.
 
 #### What Does the Installation Script Do?
 
@@ -133,7 +136,7 @@ curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | ba
    - Only removes code blocks starting with `# wt shell integration:`
 
 3. **Preserve User Data**
-  - Does not delete `~/.wt-cli/config.json` configuration file (manual deletion required)
+   - Backs up `~/.worktree.sh` to `~/.worktree.sh.backup.<timestamp>` (remove manually if you don't need it)
    - Does not delete created worktree directories
 
 ## More Examples
@@ -175,5 +178,6 @@ wt clean              # Clean all numerically named worktrees
 | `wt add <name>` | • Create new worktree in `../franxx.store.<name>`<br>• Create branch `feat/<name>`<br>• Auto-copy `.env.local` or `.env`<br>• Run `npm ci`<br>• Start `npm run dev`<br> |
 | `wt rm [name]`  | Without parameters, delete current worktree (default **Y**, press Enter to confirm);<br> With parameters, directly delete specified worktree.                           |
 | `wt clean`      | Batch clean numerically named worktrees (e.g., `3000`, `1122`), and delete corresponding `feat/*` branches; non-numeric names are preserved.                            |
+| `wt uninstall`  | Remove the installed wt binary and clean shell hooks (same as uninstall.sh).                                                          |
 | `wt main`       | Move to main repository path.                                                                                                                                           |
 | `wt <name>`     | Move to target worktree path.                                                                                                                                           |

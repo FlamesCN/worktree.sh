@@ -8,7 +8,7 @@ Usage: uninstall.sh [options]
 Options:
   --shell <shell>  Shell to unconfigure (zsh, bash, or none). Default: auto-detect
   --prefix <dir>   Remove wt from the specified directory (default: $HOME/.local/bin)
-  -h, --help       Show this help message
+  --help           Show this help message
 
 Examples:
   # Auto-detect shell and unconfigure
@@ -22,10 +22,10 @@ Examples:
   ./uninstall.sh --shell none
 
   # Uninstall via curl for zsh
-  curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | bash -s -- --shell zsh
+  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash -s -- --shell zsh
 
   # Uninstall via curl for bash
-  curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | bash -s -- --shell bash
+  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash -s -- --shell bash
 
 The script removes the wt CLI. If a shell is specified (or auto-detected),
 it will also remove the shell integration from your shell configuration file.
@@ -116,8 +116,40 @@ remove_shell_hook() {
   ' "$hook_file" > "$tmpfile"
 
   mv "$tmpfile" "$hook_file"
-  printf 'Removed wt shell hook from %s
-' "$hook_file"
+  printf 'Removed wt shell hook from %s\n' "$hook_file"
+}
+
+backup_config_dir() {
+  local default_dir="$HOME/.worktree.sh"
+  local default_file="$default_dir/config.json"
+  local config_file="${WT_CONFIG_FILE:-$default_file}"
+  local timestamp
+  timestamp=$(date +%Y%m%d_%H%M%S)
+
+  if [ "$config_file" = "$default_file" ] && [ -d "$default_dir" ]; then
+    local backup_path="${default_dir}.backup.${timestamp}"
+    local candidate="$backup_path"
+    local idx=1
+    while [ -e "$candidate" ]; do
+      candidate="${backup_path}.${idx}"
+      idx=$((idx + 1))
+    done
+    mv "$default_dir" "$candidate"
+    printf 'Backed up wt config from %s to %s\n' "$default_dir" "$candidate"
+    return
+  fi
+
+  if [ -f "$config_file" ]; then
+    local backup_path="${config_file}.backup.${timestamp}"
+    local candidate="$backup_path"
+    local idx=1
+    while [ -e "$candidate" ]; do
+      candidate="${backup_path}.${idx}"
+      idx=$((idx + 1))
+    done
+    mv "$config_file" "$candidate"
+    printf 'Backed up wt config from %s to %s\n' "$config_file" "$candidate"
+  fi
 }
 
 
@@ -188,9 +220,10 @@ main() {
     printf 'Skipping shell configuration cleanup (use --shell zsh or --shell bash to clean)\n'
   fi
 
+  backup_config_dir
+
   # Final notes
   printf '\nUninstallation complete.\n'
-  printf 'Note: Configuration file ~/.wt-cli was preserved (delete manually if needed)\n'
   printf 'Note: Any existing worktrees were preserved\n'
 }
 

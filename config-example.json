@@ -9,7 +9,7 @@
       "enabled": true,
       "files": [
         ".env",
-        ".env_local"
+        ".env.local"
       ]
     },
     "installDeps": {

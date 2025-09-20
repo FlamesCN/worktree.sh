@@ -1,4 +1,4 @@
-# wt-cli
+# worktree.sh
 
 随着 Claude Code 的智力恢复以及 Codex 中 gpt5 high 的高智商，我越来越倾向于使用 git worktree 来并行开发。但是创建分支、建立 worktree、复制环境变量、安装依赖、启动服务这种重复性工作，增加了使用 worktree 的难度。
 
@@ -56,8 +56,9 @@ wt - franxx.store worktree 助手
   clean              清理数字 worktree（匹配前缀 + 数字）
   main               输出主 worktree 的路径
   path <name>        输出指定 worktree 的路径
-  config             查看或更新 wt-cli 配置
-  init [--branch <name>] 将当前仓库默认值写入 ~/.wt-cli/config.json
+  config             查看或更新 worktree.sh 配置
+  uninstall          卸载 wt 并清理 shell 集成
+  init [--branch <name>] 将当前仓库默认值写入 ~/.worktree.sh/config.json
   shell-hook <shell> 输出 shell 集成片段 (bash|zsh)
 
 ```
@@ -69,19 +70,19 @@ wt - franxx.store worktree 助手
 #### 自动检测 shell（推荐）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
 ```
 
 #### Zsh 用户
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash -s -- --shell zsh
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
 ```
 
 #### Bash 用户
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash -s -- --shell bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell bash
 ```
 
 ### 卸载
@@ -89,20 +90,22 @@ curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash
 #### 自动检测 shell（推荐）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
 ```
 
 #### Zsh 用户
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | bash -s -- --shell zsh
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash -s -- --shell zsh
 ```
 
 #### Bash 用户
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | bash -s -- --shell bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash -s -- --shell bash
 ```
+
+安装后也可以直接运行 `wt uninstall`，它会卸载 wt 可执行文件并清理 shell 集成，与单独的脚本作用一致。
 
 #### 安装脚本做了什么？
 
@@ -131,7 +134,7 @@ curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/uninstall.sh | ba
    - 只删除以 `# wt shell integration:` 开头的代码块
 
 3. **保留用户数据**
-  - 不会删除 `~/.wt-cli/config.json` 配置文件（需手动删除）
+   - 会将 `~/.worktree.sh` 备份为 `~/.worktree.sh.backup.<timestamp>`（如不需要可手动删除）
    - 不会删除已创建的 worktree 目录
 
 ## 更多示例
@@ -173,5 +176,6 @@ wt clean              # 清理所有数字命名的 worktree
 | `wt add <name>` | • 在 `../franxx.store.<name>` 创建新 worktree<br>• 新建分支 `feat/<name>`<br>• 自动复制 `.env.local` 或 `.env`<br>• 执行 `npm ci`<br>• 启动 `npm run dev`<br> |
 | `wt rm [name]`  | 不带参数时删除当前 worktree（默认 **Y**，可回车确认）；<br> 带参数时直接删除指定 worktree。                                                                   |
 | `wt clean`      | 批量清理数字命名的 worktree（如 `3000`、`1122`），并删除对应 `feat/*` 分支；非数字名称保留。                                                                  |
+| `wt uninstall`  | 卸载 wt 命令并清理 shell 集成（等同于 uninstall.sh）。                                                                             |
 | `wt main`       | 移动到主仓库路径。                                                                                                                                            |
 | `wt <name>`     | 移动到目标 worktree 路径）。                                                                                                                                  |

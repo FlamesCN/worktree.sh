@@ -22,7 +22,7 @@ Examples:
   ./install.sh --shell none
 
   # Install via curl for zsh
-  curl -fsSL https://raw.githubusercontent.com/notdp/wt-cli/main/install.sh | bash -s -- --shell zsh
+  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
 
 The script installs the wt CLI. If a shell is specified (or auto-detected),
 it will also configure the shell integration for automatic directory switching.
@@ -156,12 +156,12 @@ main() {
     tmpdir=$(mktemp -d)
     trap 'rm -rf "${tmpdir:-}"' EXIT
 
-    local source_url="https://raw.githubusercontent.com/notdp/wt-cli/main/bin/wt"
+    local source_url="https://raw.githubusercontent.com/notdp/worktree.sh/main/bin/wt"
     printf 'Downloading wt from %s...\n' "$source_url"
     curl -fsSL "$source_url" -o "$tmpdir/wt" || die "failed to download wt from $source_url"
     source_file="$tmpdir/wt"
 
-    local messages_url="https://raw.githubusercontent.com/notdp/wt-cli/main/bin/messages.sh"
+    local messages_url="https://raw.githubusercontent.com/notdp/worktree.sh/main/bin/messages.sh"
     printf 'Downloading wt messages from %s...\n' "$messages_url"
     if curl -fsSL "$messages_url" -o "$tmpdir/messages.sh"; then
       messages_source="$tmpdir/messages.sh"
@@ -198,7 +198,7 @@ main() {
   if [ "$shell_type" = "none" ]; then
     printf '  2) Optionally add shell hook manually: `wt shell-hook zsh >> ~/.zshrc` or `wt shell-hook bash >> ~/.bashrc`\n'
   fi
-  printf 'Configuration is stored in %s (JSON).\n' "${WT_CONFIG_FILE:-$HOME/.wt-cli/config.json}"
+  printf 'Configuration is stored in %s (JSON).\n' "${WT_CONFIG_FILE:-$HOME/.worktree.sh/config.json}"
 }
 
 main "$@"

@@ -3,7 +3,7 @@ set -euo pipefail
 
 VERSION="0.1.0"
 
-CONFIG_DIR_DEFAULT="$HOME/.wt-cli"
+CONFIG_DIR_DEFAULT="$HOME/.worktree.sh"
 CONFIG_FILE_DEFAULT="$CONFIG_DIR_DEFAULT/config.json"
 
 if [ -n "${WT_CONFIG_FILE:-}" ]; then
@@ -32,7 +32,7 @@ NPM_BIN="${WT_NPM_BIN:-npm}"
 AUTO_START_DEV="$AUTO_START_DEV_DEFAULT"
 ADD_INSTALL_DEPS="$ADD_INSTALL_DEPS_DEFAULT"
 ADD_COPY_ENV="$ADD_COPY_ENV_DEFAULT"
-COPY_ENV_FILES_DEFAULT=(".env" ".env_local")
+COPY_ENV_FILES_DEFAULT=(".env" ".env.local")
 COPY_ENV_FILES=()
 INSTALL_DEPS_COMMAND_DEFAULT=""
 INSTALL_DEPS_COMMAND=""
@@ -119,6 +119,21 @@ init_language() {
       fi
     fi
   done
+}
+
+detect_shell_type() {
+  local shell_name="${SHELL##*/}"
+  case "$shell_name" in
+    bash)
+      printf 'bash\n'
+      ;;
+    zsh)
+      printf 'zsh\n'
+      ;;
+    *)
+      printf 'none\n'
+      ;;
+  esac
 }
 
 msg() {
@@ -780,7 +795,8 @@ usage() {
   list               列出所有 worktree
   rm [name]          删除 worktree（省略 name 时使用当前目录）
   clean              清理数字 worktree（匹配前缀 + 数字）
-  config             查看或更新 wt-cli 配置
+  config             查看或更新 worktree.sh 配置
+  uninstall          卸载 wt 并清理 shell 集成
   help               显示此帮助
 
 ${dir_banner_zh}
@@ -801,7 +817,8 @@ Core commands:
   list               List all worktrees
   rm [name]          Remove a worktree (current directory if name omitted)
   clean              Remove numeric worktrees (matching prefix + digits)
-  config             Inspect or update wt-cli configuration
+  config             Inspect or update worktree.sh configuration
+  uninstall          Uninstall wt and clean shell hooks
   help               Show this guide
 
 ${dir_banner_en}
@@ -1416,13 +1433,13 @@ config_usage() {
   case "$LANGUAGE" in
     zh)
       cat <<'CONFIG_USAGE_ZH'
-wt config - 查看或更新 wt-cli 配置
+wt config - 查看或更新 worktree.sh 配置
 
 子命令:
   wt config list                 显示生效配置（包含默认值）
   wt config get <key>            输出指定配置项（若缺失则报错）
-  wt config set <key> <value>    将配置写入 ~/.wt-cli
-  wt config unset <key>          从 ~/.wt-cli 移除配置
+  wt config set <key> <value>    将配置写入 ~/.worktree.sh
+  wt config unset <key>          从 ~/.worktree.sh 移除配置
 
 快捷方式:
   wt config <key>                等同于 get
@@ -1447,13 +1464,13 @@ CONFIG_USAGE_ZH
       ;;
     *)
       cat <<'CONFIG_USAGE_EN'
-wt config - Inspect or update wt-cli configuration
+wt config - Inspect or update worktree.sh configuration
 
 Subcommands:
   wt config list                 Show effective configuration (includes defaults)
   wt config get <key>            Print a single value (fails if missing)
-  wt config set <key> <value>    Persist value in ~/.wt-cli
-  wt config unset <key>          Remove key from ~/.wt-cli
+  wt config set <key> <value>    Persist value in ~/.worktree.sh
+  wt config unset <key>          Remove key from ~/.worktree.sh
 
 Shortcuts:
   wt config <key>                Shortcut for get
@@ -1656,6 +1673,199 @@ WT_HOOK
   esac
 }
 
+uninstall_remove_shell_hook() {
+  local shell_type="$1"
+  local hook_file=""
+  local hook_marker="# wt shell integration: auto-cd after wt add/path/main/remove/clean"
+  local marker_end="# wt shell integration: end"
+
+  case "$shell_type" in
+    zsh)
+      hook_file="$HOME/.zshrc"
+      ;;
+    bash)
+      hook_file="$HOME/.bashrc"
+      ;;
+    *)
+      info "$(msg uninstall_unknown_shell_type "$shell_type")"
+      return 0
+      ;;
+  esac
+
+  if [ ! -f "$hook_file" ]; then
+    info "$(msg uninstall_shell_config_missing "$hook_file")"
+    return 0
+  fi
+
+  if ! grep -Fq "$hook_marker" "$hook_file"; then
+    info "$(msg uninstall_shell_hook_missing "$hook_file")"
+    return 0
+  fi
+
+  local timestamp
+  timestamp=$(date +%Y%m%d_%H%M%S)
+  cp "$hook_file" "${hook_file}.backup.${timestamp}"
+  info "$(msg uninstall_backup_created "$hook_file" "$timestamp")"
+
+  local tmpfile
+  tmpfile=$(mktemp) || die "$(msg temp_file_failed)"
+
+  awk -v start="$hook_marker" -v finish="$marker_end" '
+    BEGIN { mode=0 }
+    {
+      if (mode==0) {
+        if ($0 == start) { mode=1; next }
+        print
+        next
+      }
+
+      if (mode==1) {
+        if ($0 == finish) { mode=2; next }
+        next
+      }
+
+      if (mode==2) {
+        if ($0 ~ /^[[:space:]]*$/) { mode=0; next }
+        mode=0
+        print
+        next
+      }
+    }
+  ' "$hook_file" > "$tmpfile"
+
+  mv "$tmpfile" "$hook_file"
+  info "$(msg uninstall_shell_hook_removed "$hook_file")"
+}
+
+uninstall_backup_config() {
+  local config_path="$CONFIG_FILE"
+  local default_dir="$CONFIG_DIR_DEFAULT"
+  local timestamp
+  timestamp=$(date +%Y%m%d_%H%M%S)
+
+  if [ "$config_path" = "$CONFIG_FILE_DEFAULT" ] && [ -d "$default_dir" ]; then
+    local backup_path="${default_dir}.backup.${timestamp}"
+    local candidate="$backup_path"
+    local idx=1
+    while [ -e "$candidate" ]; do
+      candidate="${backup_path}.${idx}"
+      idx=$((idx + 1))
+    done
+    mv "$default_dir" "$candidate"
+    info "$(msg uninstall_config_backup_created "$default_dir" "$candidate")"
+    return
+  fi
+
+  if [ -f "$config_path" ]; then
+    local backup_path="${config_path}.backup.${timestamp}"
+    local candidate="$backup_path"
+    local idx=1
+    while [ -e "$candidate" ]; do
+      candidate="${backup_path}.${idx}"
+      idx=$((idx + 1))
+    done
+    mv "$config_path" "$candidate"
+    info "$(msg uninstall_config_backup_created "$config_path" "$candidate")"
+  fi
+}
+
+cmd_uninstall() {
+  local prefix="${WT_INSTALL_PREFIX:-$HOME/.local/bin}"
+  local shell_type=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --shell)
+        shift || die "$(msg uninstall_requires_shell_value)"
+        shell_type="$1"
+        ;;
+      --prefix)
+        shift || die "$(msg uninstall_requires_prefix_value)"
+        prefix="$1"
+        ;;
+      -h|--help|help)
+        case "$LANGUAGE" in
+          zh)
+            cat <<'UNINSTALL_USAGE_ZH'
+wt uninstall 用法:
+  wt uninstall [--shell <shell>] [--prefix <dir>]
+
+选项:
+  --shell <shell>   指定要清理的 shell（zsh|bash|none；默认自动检测）
+  --prefix <dir>    wt 安装目录（默认 $HOME/.local/bin）
+  --help            查看帮助
+UNINSTALL_USAGE_ZH
+            ;;
+          *)
+            cat <<'UNINSTALL_USAGE_EN'
+wt uninstall usage:
+  wt uninstall [--shell <shell>] [--prefix <dir>]
+
+Options:
+  --shell <shell>   Shell to clean hooks for (zsh|bash|none; default: auto-detect)
+  --prefix <dir>    Directory where wt is installed (default: $HOME/.local/bin)
+  --help            Show this help
+UNINSTALL_USAGE_EN
+            ;;
+        esac
+        return
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        die "$(msg uninstall_unknown_option "$1")"
+        ;;
+      *)
+        die "$(msg uninstall_no_positional)"
+        ;;
+    esac
+    shift || true
+  done
+
+  if [ $# -gt 0 ]; then
+    die "$(msg uninstall_no_positional)"
+  fi
+
+  if [ -z "$shell_type" ]; then
+    shell_type=$(detect_shell_type)
+    info "$(msg uninstall_auto_detected_shell "$shell_type")"
+  fi
+
+  case "$shell_type" in
+    zsh|bash|none) ;;
+    *)
+      die "$(msg uninstall_invalid_shell "$shell_type")"
+      ;;
+  esac
+
+  local wt_bin="$prefix/wt"
+  if [ -f "$wt_bin" ]; then
+    rm -f "$wt_bin"
+    info "$(msg uninstall_removed_binary "$wt_bin")"
+  else
+    info "$(msg uninstall_binary_missing "$wt_bin")"
+  fi
+
+  local messages_file="$prefix/messages.sh"
+  if [ -f "$messages_file" ]; then
+    rm -f "$messages_file"
+    info "$(msg uninstall_removed_messages "$messages_file")"
+  fi
+
+  if [ "$shell_type" != "none" ]; then
+    uninstall_remove_shell_hook "$shell_type"
+  else
+    info "$(msg uninstall_skip_shell_cleanup)"
+  fi
+
+  uninstall_backup_config
+
+  info "$(msg uninstall_complete)"
+  info "$(msg uninstall_worktrees_preserved)"
+}
+
 cmd_init() {
   local branch=""
   while [ $# -gt 0 ]; do
@@ -1671,7 +1881,7 @@ cmd_init() {
 wt init 用法:
   wt init [branch <name>]
 
-请在 franxx.store 仓库根目录运行，以将设置写入 ~/.wt-cli：
+请在 franxx.store 仓库根目录运行，以将设置写入 ~/.worktree.sh：
 - 设置 workingRepo.path 为仓库根目录。
 - 提供 branch <name> 时设置 workingRepo.branch（默认使用当前分支）。
 INIT_USAGE_ZH
@@ -1681,7 +1891,7 @@ INIT_USAGE_ZH
 wt init usage:
   wt init [branch <name>]
 
-Run inside the franxx.store repository to capture settings into ~/.wt-cli.
+Run inside the franxx.store repository to capture settings into ~/.worktree.sh.
 - Sets workingRepo.path to the repo root.
 - Optionally sets workingRepo.branch when branch <name> is provided (defaults to current branch).
 INIT_USAGE_EN
@@ -1872,6 +2082,10 @@ main() {
       ;;
     shell-hook)
       cmd_shell_hook "$@"
+      return
+      ;;
+    uninstall)
+      cmd_uninstall "$@"
       return
       ;;
     init)

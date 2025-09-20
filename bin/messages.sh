@@ -238,6 +238,60 @@ msg_en() {
     invalid_language)
       printf 'unsupported language: %s (supported: en, zh)' "$1"
       ;;
+    uninstall_auto_detected_shell)
+      printf 'Auto-detected shell: %s' "$1"
+      ;;
+    uninstall_requires_shell_value)
+      printf '--shell requires a value'
+      ;;
+    uninstall_requires_prefix_value)
+      printf '--prefix requires a value'
+      ;;
+    uninstall_invalid_shell)
+      printf 'Invalid shell type: %s (use zsh, bash, or none)' "$1"
+      ;;
+    uninstall_unknown_option)
+      printf 'unknown option for uninstall: %s' "$1"
+      ;;
+    uninstall_no_positional)
+      printf 'uninstall takes no positional arguments'
+      ;;
+    uninstall_removed_binary)
+      printf 'Removed wt from %s' "$1"
+      ;;
+    uninstall_binary_missing)
+      printf 'wt not found at %s (already removed?)' "$1"
+      ;;
+    uninstall_removed_messages)
+      printf 'Removed wt messages from %s' "$1"
+      ;;
+    uninstall_shell_config_missing)
+      printf 'Shell config file %s does not exist, skipping.' "$1"
+      ;;
+    uninstall_shell_hook_missing)
+      printf 'No wt shell hook found in %s, skipping.' "$1"
+      ;;
+    uninstall_backup_created)
+      printf 'Created backup: %s.backup.%s' "$1" "$2"
+      ;;
+    uninstall_shell_hook_removed)
+      printf 'Removed wt shell hook from %s' "$1"
+      ;;
+    uninstall_unknown_shell_type)
+      printf 'Warning: Unknown shell type %s, skipping shell cleanup' "$1"
+      ;;
+    uninstall_skip_shell_cleanup)
+      printf 'Skipping shell configuration cleanup (use --shell zsh or --shell bash to clean)'
+      ;;
+    uninstall_complete)
+      printf 'Uninstallation complete.'
+      ;;
+    uninstall_config_backup_created)
+      printf 'Backed up wt config from %s to %s' "$1" "$2"
+      ;;
+    uninstall_worktrees_preserved)
+      printf 'Note: Any existing worktrees were preserved'
+      ;;
     *)
       printf '%s' "$key"
       ;;
@@ -481,6 +535,60 @@ msg_zh() {
       ;;
     invalid_language)
       printf '不支持的语言: %s（支持 en、zh）' "$1"
+      ;;
+    uninstall_auto_detected_shell)
+      printf '自动检测到 shell: %s' "$1"
+      ;;
+    uninstall_requires_shell_value)
+      printf '--shell 需要一个值'
+      ;;
+    uninstall_requires_prefix_value)
+      printf '--prefix 需要一个值'
+      ;;
+    uninstall_invalid_shell)
+      printf '无效的 shell 类型: %s（可选 zsh、bash 或 none）' "$1"
+      ;;
+    uninstall_unknown_option)
+      printf 'uninstall 未知选项: %s' "$1"
+      ;;
+    uninstall_no_positional)
+      printf 'uninstall 不接受额外位置参数'
+      ;;
+    uninstall_removed_binary)
+      printf '已从 %s 删除 wt' "$1"
+      ;;
+    uninstall_binary_missing)
+      printf '在 %s 未找到 wt（可能已删除）' "$1"
+      ;;
+    uninstall_removed_messages)
+      printf '已从 %s 删除 wt 消息文件' "$1"
+      ;;
+    uninstall_shell_config_missing)
+      printf '未找到 shell 配置文件 %s，跳过。' "$1"
+      ;;
+    uninstall_shell_hook_missing)
+      printf '未在 %s 找到 wt shell hook，跳过。' "$1"
+      ;;
+    uninstall_backup_created)
+      printf '已创建备份: %s.backup.%s' "$1" "$2"
+      ;;
+    uninstall_shell_hook_removed)
+      printf '已从 %s 移除 wt shell hook' "$1"
+      ;;
+    uninstall_unknown_shell_type)
+      printf '警告: 未知 shell 类型 %s，跳过 shell 清理' "$1"
+      ;;
+    uninstall_skip_shell_cleanup)
+      printf '跳过 shell 配置清理（使用 --shell zsh 或 --shell bash 可执行清理）'
+      ;;
+    uninstall_complete)
+      printf '卸载完成。'
+      ;;
+    uninstall_config_backup_created)
+      printf '已将 wt 配置从 %s 备份到 %s' "$1" "$2"
+      ;;
+    uninstall_worktrees_preserved)
+      printf '注意: 已创建的 worktree 不会删除'
       ;;
     *)
       printf '%s' "$key"
