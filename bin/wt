@@ -40,6 +40,7 @@ SERVE_DEV_COMMAND_DEFAULT=""
 SERVE_DEV_COMMAND=""
 LANGUAGE_DEFAULT="en"
 LANGUAGE="$LANGUAGE_DEFAULT"
+PROJECT_DIR_CONFIGURED=0
 
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-${0}}"
 SCRIPT_DIR=$(cd "$(dirname "$SCRIPT_SOURCE")" 2>/dev/null && pwd || pwd)
@@ -619,6 +620,7 @@ init_settings() {
   COPY_ENV_FILES=("${COPY_ENV_FILES_DEFAULT[@]}")
   INSTALL_DEPS_COMMAND="$INSTALL_DEPS_COMMAND_DEFAULT"
   SERVE_DEV_COMMAND="$SERVE_DEV_COMMAND_DEFAULT"
+  PROJECT_DIR_CONFIGURED=0
 
   WORKTREE_PREFIX_DEFAULT="$(basename "$DEFAULT_PROJECT_DIR")."
   WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
@@ -632,6 +634,7 @@ init_settings() {
       DEFAULT_PROJECT_DIR="$raw_value"
       WORKTREE_PREFIX_DEFAULT="$(basename "$DEFAULT_PROJECT_DIR")."
       WORKTREE_PREFIX="${WT_WORKTREE_PREFIX:-$WORKTREE_PREFIX_DEFAULT}"
+      PROJECT_DIR_CONFIGURED=1
     fi
   fi
 
@@ -728,23 +731,36 @@ die() {
 }
 
 usage() {
-  local project_basename
-  project_basename=$(basename "$DEFAULT_PROJECT_DIR")
-
-  local project_dir_display="$DEFAULT_PROJECT_DIR"
   local project_dir_box_display="$DEFAULT_PROJECT_DIR"
-  if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
+  local project_dir_display="$DEFAULT_PROJECT_DIR"
+  local dir_text_en
+  local dir_text_zh
+  local should_highlight=0
+
+  if [ -n "${WT_PROJECT_DIR:-}" ]; then
+    project_dir_box_display="$WT_PROJECT_DIR"
+    project_dir_display="$WT_PROJECT_DIR"
+    dir_text_en="Project directory: ${project_dir_box_display}"
+    dir_text_zh="项目目录: ${project_dir_box_display}"
+    should_highlight=1
+  elif [ "$PROJECT_DIR_CONFIGURED" -eq 1 ]; then
+    dir_text_en="Project directory: ${project_dir_box_display}"
+    dir_text_zh="项目目录: ${project_dir_box_display}"
+    should_highlight=1
+  else
+    dir_text_en="Project directory: not set; run wt init inside your repo"
+    dir_text_zh="项目目录: 未定义，请在仓库目录下运行 wt init"
+  fi
+
+  if [ "$should_highlight" -eq 1 ] && [ -t 1 ] && command -v tput >/dev/null 2>&1; then
     local ansi_cyan ansi_bold ansi_reset
     ansi_cyan=$(tput setaf 6 2>/dev/null || true)
     ansi_bold=$(tput bold 2>/dev/null || true)
     ansi_reset=$(tput sgr0 2>/dev/null || true)
     if [ -n "$ansi_cyan$ansi_bold" ]; then
-      project_dir_display="${ansi_bold}${ansi_cyan}${DEFAULT_PROJECT_DIR}${ansi_reset}"
+      project_dir_display="${ansi_bold}${ansi_cyan}${project_dir_box_display}${ansi_reset}"
     fi
   fi
-
-  local dir_text_en="Project directory: ${project_dir_box_display}"
-  local dir_text_zh="项目目录: ${project_dir_box_display}"
 
   local banner_width_en=${#dir_text_en}
   local banner_width_zh=${#dir_text_zh}
@@ -775,7 +791,7 @@ usage() {
   dir_banner_en=$(printf '%s\n%s\n%s' "$dir_top_en" "$dir_mid_en" "$dir_bottom_en")
   dir_banner_zh=$(printf '%s\n%s\n%s' "$dir_top_zh" "$dir_mid_zh" "$dir_bottom_zh")
 
-  if [ "$project_dir_display" != "$project_dir_box_display" ]; then
+  if [ "$should_highlight" -eq 1 ] && [ "$project_dir_display" != "$project_dir_box_display" ]; then
     dir_banner_en=${dir_banner_en//Project directory: $project_dir_box_display/Project directory: $project_dir_display}
     dir_banner_zh=${dir_banner_zh//项目目录: $project_dir_box_display/项目目录: $project_dir_display}
   fi
@@ -842,7 +858,14 @@ resolve_project() {
   command -v git >/dev/null 2>&1 || die "$(msg git_required)"
 
   if [ -z "$PROJECT_DIR" ]; then
-    PROJECT_DIR="${WT_PROJECT_DIR:-$DEFAULT_PROJECT_DIR}"
+    if [ -n "${WT_PROJECT_DIR:-}" ]; then
+      PROJECT_DIR="$WT_PROJECT_DIR"
+    else
+      if [ "$PROJECT_DIR_CONFIGURED" -ne 1 ]; then
+        die "$(msg project_dir_unset)"
+      fi
+      PROJECT_DIR="$DEFAULT_PROJECT_DIR"
+    fi
   fi
 
   PROJECT_DIR_ABS=$(cd "$PROJECT_DIR" 2>/dev/null && pwd) || die "$(msg project_not_found "$PROJECT_DIR")"
@@ -2056,6 +2079,7 @@ cmd_clean() {
 
 main() {
   init_settings
+  ensure_messages_loaded
 
   local command=""
   while [ $# -gt 0 ]; do

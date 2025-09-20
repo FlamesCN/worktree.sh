@@ -148,6 +148,9 @@ msg_en() {
     project_not_found)
       printf 'project directory not found: %s' "$1"
       ;;
+    project_dir_unset)
+      printf 'wt is not configured yet; run "wt init" inside your repository first'
+      ;;
     list_no_args)
       printf 'list takes no arguments'
       ;;
@@ -448,6 +451,9 @@ msg_zh() {
       ;;
     project_not_found)
       printf '未找到项目目录: %s' "$1"
+      ;;
+    project_dir_unset)
+      printf 'wt 尚未初始化，请在仓库目录下运行 wt init'
       ;;
     list_no_args)
       printf 'list 不接受参数'
