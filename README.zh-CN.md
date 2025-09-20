@@ -115,7 +115,7 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 wt config set add.serve-dev.enabled false    # 关闭自动启动 dev server
 wt config set add.install-deps.enabled true  # 确保自动安装依赖
 wt config set add.branch-prefix "feature/"   # 自定义分支前缀
-wt config set add.branch-prefix '""'         # 让分支名与 worktree 保持一致
+wt config set language zh                    # 将 CLI 提示切换为中文
 wt config list                               # 查看当前配置
 ```
 

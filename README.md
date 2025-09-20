@@ -115,7 +115,7 @@ Settings live in `~/.worktree.sh/config.kv`. Update them with `wt config set`:
 wt config set add.serve-dev.enabled false    # Disable auto dev server
 wt config set add.install-deps.enabled true  # Ensure dependencies are installed
 wt config set add.branch-prefix "feature/"   # Customize branch prefixes
-wt config set add.branch-prefix '""'         # Allow branches to match worktree names
+wt config set language zh                    # Switch CLI prompts to Simplified Chinese
 wt config list                               # Inspect current values
 ```
 
