@@ -75,6 +75,7 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 | `wt clean`       | 批量清理数字命名的 worktree，并删除对应的 `feat/*` 分支。                    |
 | `wt main`        | 输出主仓库路径。                                                             |
 | `wt config`      | 检查或调整 CLI 行为。                                                        |
+| `wt update`      | 从官方仓库下载最新的 wt 脚本和消息文件（需安装 `curl`）。                    |
 | `wt uninstall`   | 移除二进制并清理 shell hook。                                                |
 | `wt help`        | 查看内置命令参考。                                                           |
 
@@ -101,6 +102,10 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
   ```
 
 安装完成后，重新加载 shell 配置（`source ~/.zshrc` 或 `source ~/.bashrc`），再在目标仓库运行 `wt init` 设置默认项目。
+
+后续如需升级，直接运行 `wt update` 即可下载最新脚本与消息文件，无需重新安装。
+
+平滑更新是默认行为；若未来出现破坏性变更，可先执行 `wt uninstall`，再通过安装脚本重新部署。
 
 ## 配置要点
 

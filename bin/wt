@@ -23,6 +23,9 @@ readonly CONFIG_DEFAULT_SERVE_DEV_COMMAND=""
 readonly CONFIG_DEFAULT_LANGUAGE="en"
 readonly -a CONFIG_DEFAULT_COPY_ENV_FILES=(".env" ".env.local")
 
+readonly WT_UPDATE_WT_URL="https://raw.githubusercontent.com/notdp/worktree.sh/main/bin/wt"
+readonly WT_UPDATE_MESSAGES_URL="https://raw.githubusercontent.com/notdp/worktree.sh/main/bin/messages.sh"
+
 WORKING_REPO_PATH=""
 WORKTREE_NAME_PREFIX=""
 WORKTREE_BRANCH_PREFIX=""
@@ -721,6 +724,7 @@ usage() {
   clean              清理数字 worktree（匹配前缀 + 数字）
   config             查看或更新 worktree.sh 配置
   uninstall          卸载 wt 并清理 shell 集成
+  update             下载最新版 wt 脚本和消息文件（需要 curl）
   help               显示此帮助
 
 ${dir_banner_zh}
@@ -743,6 +747,7 @@ Core commands:
   clean              Remove numeric worktrees (matching prefix + digits)
   config             Inspect or update worktree.sh configuration
   uninstall          Uninstall wt and clean shell hooks
+  update             Download the latest wt script and messages (requires curl)
   help               Show this guide
 
 ${dir_banner_en}
@@ -1864,6 +1869,115 @@ UNINSTALL_USAGE_EN
   info "$(msg uninstall_worktrees_preserved)"
 }
 
+cmd_update() {
+  local prefix="${WT_INSTALL_PREFIX:-$HOME/.local/bin}"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help|help)
+        case "$LANGUAGE" in
+          zh)
+            cat <<'UPDATE_USAGE_ZH'
+wt update 用法:
+  wt update
+
+说明:
+  - 从官方仓库下载最新 wt 和 messages.sh
+  - 默认更新 ~/.local/bin 下的安装（可通过 WT_INSTALL_PREFIX 环境变量覆盖）
+  - 需要 curl 命令
+UPDATE_USAGE_ZH
+            ;;
+          *)
+            cat <<'UPDATE_USAGE_EN'
+wt update usage:
+  wt update
+
+Details:
+  - Downloads the latest wt and messages.sh from the official repository
+  - Updates the installation in ~/.local/bin (override with WT_INSTALL_PREFIX environment variable)
+  - Requires curl to be installed
+UPDATE_USAGE_EN
+            ;;
+        esac
+        return
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        die "$(msg update_unknown_option "$1")"
+        ;;
+      *)
+        die "$(msg update_no_positional)"
+        ;;
+    esac
+    shift || true
+  done
+
+  if [ $# -gt 0 ]; then
+    die "$(msg update_no_positional)"
+  fi
+
+  command -v curl >/dev/null 2>&1 || die "$(msg curl_required)"
+
+  local tmpdir
+  tmpdir=$(mktemp -d 2>/dev/null) || die "$(msg temp_dir_failed)"
+
+  local wt_tmp="$tmpdir/wt"
+  local messages_tmp="$tmpdir/messages.sh"
+
+  info "$(msg update_fetch "$WT_UPDATE_WT_URL")"
+  if ! curl -fsSL "$WT_UPDATE_WT_URL" -o "$wt_tmp"; then
+    rm -rf "$tmpdir"
+    die "$(msg update_download_failed "$WT_UPDATE_WT_URL")"
+  fi
+
+  info "$(msg update_fetch "$WT_UPDATE_MESSAGES_URL")"
+  if ! curl -fsSL "$WT_UPDATE_MESSAGES_URL" -o "$messages_tmp"; then
+    rm -rf "$tmpdir"
+    die "$(msg update_download_failed "$WT_UPDATE_MESSAGES_URL")"
+  fi
+
+  if ! install -d "$prefix"; then
+    rm -rf "$tmpdir"
+    die "$(msg update_create_prefix_failed "$prefix")"
+  fi
+
+  local updated=0
+  local target_wt="$prefix/wt"
+  if [ -f "$target_wt" ] && cmp -s "$target_wt" "$wt_tmp"; then
+    info "$(msg update_binary_unchanged "$target_wt")"
+  else
+    if ! install -m 0755 "$wt_tmp" "$target_wt"; then
+      rm -rf "$tmpdir"
+      die "$(msg update_install_failed "$target_wt")"
+    fi
+    info "$(msg update_binary_installed "$target_wt")"
+    updated=1
+  fi
+
+  local target_messages="$prefix/messages.sh"
+  if [ -f "$target_messages" ] && cmp -s "$target_messages" "$messages_tmp"; then
+    info "$(msg update_messages_unchanged "$target_messages")"
+  else
+    if ! install -m 0644 "$messages_tmp" "$target_messages"; then
+      rm -rf "$tmpdir"
+      die "$(msg update_install_failed "$target_messages")"
+    fi
+    info "$(msg update_messages_installed "$target_messages")"
+    updated=1
+  fi
+
+  rm -rf "$tmpdir"
+
+  if [ "$updated" -eq 0 ]; then
+    info "$(msg update_already_latest)"
+  else
+    info "$(msg update_complete)"
+  fi
+}
+
 cmd_init() {
   local branch=""
   while [ $# -gt 0 ]; do
@@ -2111,6 +2225,10 @@ main() {
       ;;
     uninstall)
       cmd_uninstall "$@"
+      return
+      ;;
+    update)
+      cmd_update "$@"
       return
       ;;
     init)

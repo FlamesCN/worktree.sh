@@ -301,6 +301,48 @@ msg_en() {
     uninstall_worktrees_preserved)
       printf 'Note: Any existing worktrees were preserved'
       ;;
+    update_unknown_option)
+      printf 'unknown option for update: %s' "$1"
+      ;;
+    update_no_positional)
+      printf 'update takes no positional arguments'
+      ;;
+    curl_required)
+      printf 'curl is required'
+      ;;
+    temp_dir_failed)
+      printf 'failed to allocate temp directory'
+      ;;
+    update_fetch)
+      printf 'Downloading %s' "$1"
+      ;;
+    update_download_failed)
+      printf 'failed to download %s' "$1"
+      ;;
+    update_create_prefix_failed)
+      printf 'failed to prepare install directory %s' "$1"
+      ;;
+    update_binary_unchanged)
+      printf 'wt already up to date at %s' "$1"
+      ;;
+    update_binary_installed)
+      printf 'Updated wt at %s' "$1"
+      ;;
+    update_messages_unchanged)
+      printf 'messages already up to date at %s' "$1"
+      ;;
+    update_messages_installed)
+      printf 'Updated messages at %s' "$1"
+      ;;
+    update_install_failed)
+      printf 'failed to write %s' "$1"
+      ;;
+    update_already_latest)
+      printf 'You already have the latest wt release'
+      ;;
+    update_complete)
+      printf '✅ Update complete. Restart your shell if wt was running in another session.'
+      ;;
     *)
       printf '%s' "$key"
       ;;
@@ -607,6 +649,48 @@ msg_zh() {
       ;;
     uninstall_worktrees_preserved)
       printf '注意: 已创建的 worktree 不会删除'
+      ;;
+    update_unknown_option)
+      printf 'update 未知选项: %s' "$1"
+      ;;
+    update_no_positional)
+      printf 'update 不接受位置参数'
+      ;;
+    curl_required)
+      printf '需要安装 curl'
+      ;;
+    temp_dir_failed)
+      printf '无法创建临时目录'
+      ;;
+    update_fetch)
+      printf '正在下载 %s' "$1"
+      ;;
+    update_download_failed)
+      printf '下载失败: %s' "$1"
+      ;;
+    update_create_prefix_failed)
+      printf '无法准备安装目录 %s' "$1"
+      ;;
+    update_binary_unchanged)
+      printf 'wt 在 %s 已是最新版本' "$1"
+      ;;
+    update_binary_installed)
+      printf '已更新 wt 到 %s' "$1"
+      ;;
+    update_messages_unchanged)
+      printf 'messages 在 %s 已是最新版本' "$1"
+      ;;
+    update_messages_installed)
+      printf '已更新 messages 到 %s' "$1"
+      ;;
+    update_install_failed)
+      printf '写入 %s 失败' "$1"
+      ;;
+    update_already_latest)
+      printf '当前 wt 已是最新版本'
+      ;;
+    update_complete)
+      printf '✅ 更新完成。如在其它终端运行 wt，请重启终端。'
       ;;
     *)
       printf '%s' "$key"
