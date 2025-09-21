@@ -67,7 +67,7 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 
 | 命令             | 说明                                                                         |
 | ---------------- | ---------------------------------------------------------------------------- |
-| `wt` / `wt list` | 展示当前追踪的 worktree（`git worktree list` 包装）。                        |
+| `wt list`        | 展示当前追踪的 worktree（`git worktree list` 包装）。                        |
 | `wt add <name>`  | 创建 worktree、分支、复制环境文件、安装依赖并启动 dev server（行为可配置）。 |
 | `wt <name>`      | 直接进入指定 worktree 目录。                                                 |
 | `wt rm [name]`   | 删除当前或指定的 worktree（默认确认，可加 `--yes` 跳过）。                   |

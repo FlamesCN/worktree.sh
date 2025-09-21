@@ -65,18 +65,18 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 
 ## Everyday Commands
 
-| Command          | What it does                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `wt` / `wt list` | Show tracked worktrees (wrapper over `git worktree list`).                                                |
-| `wt add <name>`  | Create worktree, branch, copy env files, install deps, launch dev server (behavior controlled by config). |
-| `wt <name>`      | Jump straight into an existing worktree directory.                                                        |
-| `wt rm [name]`   | Delete current worktree or the one you name (prompts unless `--yes`).                                     |
-| `wt clean`       | Batch-remove numerically named worktrees and matching `feat/*` branches.                                  |
-| `wt main`        | Output the main repository path.                                                                          |
-| `wt config`      | Inspect or tweak CLI behavior.                                                                            |
-| `wt update`      | Refresh the installed wt script and messages from the official repo (requires `curl`).                   |
-| `wt uninstall`   | Remove the binary and shell hooks.                                                                        |
-| `wt help`        | Show built-in reference for all commands.                                                                 |
+| Command         | What it does                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| `wt list`       | Show tracked worktrees (wrapper over `git worktree list`).                                                |
+| `wt add <name>` | Create worktree, branch, copy env files, install deps, launch dev server (behavior controlled by config). |
+| `wt <name>`     | Jump straight into an existing worktree directory.                                                        |
+| `wt rm [name]`  | Delete current worktree or the one you name (prompts unless `--yes`).                                     |
+| `wt clean`      | Batch-remove numerically named worktrees and matching `feat/*` branches.                                  |
+| `wt main`       | Output the main repository path.                                                                          |
+| `wt config`     | Inspect or tweak CLI behavior.                                                                            |
+| `wt update`     | Refresh the installed wt script and messages from the official repo (requires `curl`).                    |
+| `wt uninstall`  | Remove the binary and shell hooks.                                                                        |
+| `wt help`       | Show built-in reference for all commands.                                                                 |
 
 ## Installation Options
 

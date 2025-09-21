@@ -589,14 +589,16 @@ init_settings_from_file() {
           trimmed="${trimmed%]}"
           local -a files=()
           if [ -n "$trimmed" ]; then
-            local item
-            while IFS=',' read -r item; do
+            local -a raw_items=()
+            IFS=',' read -r -a raw_items <<< "$trimmed"
+            local item=""
+            for item in "${raw_items[@]}"; do
               item="${item#"${item%%[![:space:]]*}"}"
               item="${item%"${item##*[![:space:]]}"}"
               item="${item#\"}"
               item="${item%\"}"
               [ -n "$item" ] && files+=("$item")
-            done <<< "$trimmed"
+            done
           fi
           if [ ${#files[@]} -gt 0 ]; then
             COPY_ENV_FILE_SELECTION=("${files[@]}")
