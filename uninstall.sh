@@ -46,8 +46,14 @@ detect_shell() {
   esac
 }
 
+REMOVAL_SUMMARY=()
+SHELL_REMOVAL_MESSAGE=""
+CONFIG_BACKUP_MESSAGE=""
+
 remove_shell_hook() {
   local shell_type="$1"
+
+  SHELL_REMOVAL_MESSAGE=""
 
   if [ "$shell_type" = "none" ]; then
     return 0
@@ -65,29 +71,25 @@ remove_shell_hook() {
       hook_file="$HOME/.bashrc"
       ;;
     *)
-      printf 'Warning: Unknown shell type %s, skipping shell cleanup
-' "$shell_type" >&2
+      SHELL_REMOVAL_MESSAGE=$(printf 'Unknown shell type %s; skipped shell cleanup.' "$shell_type")
       return 0
       ;;
   esac
 
   if [ ! -f "$hook_file" ]; then
-    printf 'Shell config file %s does not exist, skipping.
-' "$hook_file"
+    SHELL_REMOVAL_MESSAGE=$(printf 'Shell config file %s does not exist (already removed).' "$hook_file")
     return 0
   fi
 
   if ! grep -Fq "$hook_marker" "$hook_file"; then
-    printf 'No wt shell hook found in %s, skipping.
-' "$hook_file"
+    SHELL_REMOVAL_MESSAGE=$(printf 'wt shell hook not found in %s (already removed).' "$hook_file")
     return 0
   fi
 
   local timestamp
   timestamp=$(date +%Y%m%d_%H%M%S)
-  cp "$hook_file" "${hook_file}.backup.${timestamp}"
-  printf 'Created backup: %s.backup.%s
-' "$hook_file" "$timestamp"
+  local backup_path="${hook_file}.backup.${timestamp}"
+  cp "$hook_file" "$backup_path"
 
   local tmpfile
   tmpfile=$(mktemp)
@@ -116,7 +118,7 @@ remove_shell_hook() {
   ' "$hook_file" > "$tmpfile"
 
   mv "$tmpfile" "$hook_file"
-  printf 'Removed wt shell hook from %s\n' "$hook_file"
+  SHELL_REMOVAL_MESSAGE=$(printf 'Removed wt shell hook from %s (backup: %s).' "$hook_file" "$backup_path")
 }
 
 backup_config_dir() {
@@ -125,6 +127,8 @@ backup_config_dir() {
   local config_file="${WT_CONFIG_FILE:-$default_file}"
   local timestamp
   timestamp=$(date +%Y%m%d_%H%M%S)
+
+  CONFIG_BACKUP_MESSAGE=""
 
   if [ "$config_file" = "$default_file" ] && [ -d "$default_dir" ]; then
     local backup_path="${default_dir}.backup.${timestamp}"
@@ -135,7 +139,7 @@ backup_config_dir() {
       idx=$((idx + 1))
     done
     mv "$default_dir" "$candidate"
-    printf 'Backed up wt config from %s to %s\n' "$default_dir" "$candidate"
+    CONFIG_BACKUP_MESSAGE=$(printf 'Backed up wt config from %s to %s.' "$default_dir" "$candidate")
     return
   fi
 
@@ -148,7 +152,9 @@ backup_config_dir() {
       idx=$((idx + 1))
     done
     mv "$config_file" "$candidate"
-    printf 'Backed up wt config from %s to %s\n' "$config_file" "$candidate"
+    CONFIG_BACKUP_MESSAGE=$(printf 'Backed up wt config from %s to %s.' "$config_file" "$candidate")
+  else
+    CONFIG_BACKUP_MESSAGE=$(printf 'wt config not found at %s (already removed).' "$config_file")
   fi
 }
 
@@ -198,33 +204,53 @@ main() {
     *) die "Invalid shell type: $shell_type (use zsh, bash, or none)" ;;
   esac
 
+  REMOVAL_SUMMARY=()
+
   # Remove wt binary
   local wt_bin="$prefix/wt"
   if [ -f "$wt_bin" ]; then
     rm -f "$wt_bin"
-    printf 'Removed wt from %s\n' "$wt_bin"
+    REMOVAL_SUMMARY+=("Removed wt from $wt_bin.")
   else
-    printf 'wt not found at %s (already removed?)\n' "$wt_bin"
+    REMOVAL_SUMMARY+=("wt not found at $wt_bin (already removed).")
   fi
 
   local wt_messages="$prefix/messages.sh"
   if [ -f "$wt_messages" ]; then
     rm -f "$wt_messages"
-    printf 'Removed wt messages from %s\n' "$wt_messages"
+    REMOVAL_SUMMARY+=("Removed wt messages from $wt_messages.")
+  else
+    REMOVAL_SUMMARY+=("wt messages not found at $wt_messages (already removed).")
   fi
 
   # Remove shell hook if requested
   if [ "$shell_type" != "none" ]; then
     remove_shell_hook "$shell_type"
+    if [ -n "$SHELL_REMOVAL_MESSAGE" ]; then
+      REMOVAL_SUMMARY+=("$SHELL_REMOVAL_MESSAGE")
+    else
+      REMOVAL_SUMMARY+=("Shell cleanup completed.")
+    fi
   else
-    printf 'Skipping shell configuration cleanup (use --shell zsh or --shell bash to clean)\n'
+    REMOVAL_SUMMARY+=("Skipped shell configuration cleanup (use --shell zsh or --shell bash to clean).")
   fi
 
   backup_config_dir
+  if [ -n "$CONFIG_BACKUP_MESSAGE" ]; then
+    REMOVAL_SUMMARY+=("$CONFIG_BACKUP_MESSAGE")
+  else
+    REMOVAL_SUMMARY+=("wt config not found (already removed).")
+  fi
 
-  # Final notes
-  printf '\nUninstallation complete.\n'
-  printf 'Note: Any existing worktrees were preserved\n'
+  printf '\nUninstallation summary:\n'
+  local i
+  for i in "${!REMOVAL_SUMMARY[@]}"; do
+    local index=$((i + 1))
+    printf '  %d. %s\n' "$index" "${REMOVAL_SUMMARY[$i]}"
+  done
+
+  printf '\nNotes:\n'
+  printf '  - Existing worktrees were preserved.\n'
 }
 
 main "$@"

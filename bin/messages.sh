@@ -86,13 +86,13 @@ msg_en() {
       printf '✅ Worktree ready: %s' "$1"
       ;;
     init_set_project)
-      printf '✅ Set repo.path = %s' "$1"
+      printf 'wt init completed successfully.\n\nCaptured defaults:\n  repo.path   → \033[1m%s\033[0m\n' "$1"
       ;;
     init_set_branch)
-      printf '✅ Set repo.branch = %s' "$1"
+      printf '  repo.branch → \033[1m%s\033[0m\n' "$1"
       ;;
     init_done)
-      printf '🎉 wt init complete; future commands will use these defaults'
+      printf ''
       ;;
     aborted)
       printf 'Aborted'
@@ -435,13 +435,13 @@ msg_zh() {
       printf '✅ 新 worktree 就绪: %s' "$1"
       ;;
     init_set_project)
-      printf '✅ 已设置 repo.path = %s' "$1"
+      printf 'wt init 已完成。\n\n捕获的默认值：\n  repo.path   → \033[1m%s\033[0m\n' "$1"
       ;;
     init_set_branch)
-      printf '✅ 已设置 repo.branch = %s' "$1"
+      printf '  repo.branch → \033[1m%s\033[0m\n' "$1"
       ;;
     init_done)
-      printf '🎉 wt init 完成，后续命令将默认使用以上配置'
+      printf ''
       ;;
     aborted)
       printf '已取消'

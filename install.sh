@@ -50,9 +50,18 @@ detect_shell() {
   esac
 }
 
+SHELL_HOOK_STATUS=""
+SHELL_SOURCE_HINT=""
+
+readonly STYLE_BLUE_BOLD=$'\033[1;94m'
+readonly COLOR_RESET=$'\033[0m'
+
 install_shell_hook() {
   local shell_type="$1"
   local wt_bin="$2"
+
+  SHELL_HOOK_STATUS=""
+  SHELL_SOURCE_HINT=""
 
   if [ "$shell_type" = "none" ]; then
     return 0
@@ -82,13 +91,13 @@ install_shell_hook() {
 
   # Check if hook already exists
   if grep -Fq "$hook_marker" "$hook_file"; then
-    printf '%s shell hook already present in %s (skipping append).\n' "$shell_type" "$hook_file"
+    SHELL_HOOK_STATUS="$(printf 'wt shell hook already present in %s (skipped append).' "$hook_file")"
   else
     printf '\n%s\n' "$("$wt_bin" shell-hook "$shell_type")" >> "$hook_file"
-    printf 'Appended wt shell hook to %s\n' "$hook_file"
+    SHELL_HOOK_STATUS="$(printf 'Appended wt shell hook to %s.' "$hook_file")"
   fi
 
-  printf 'To enable wt auto-cd right away, run `source %s` (or start a new shell).\n' "$hook_file"
+  SHELL_SOURCE_HINT="source $hook_file"
 }
 
 main() {
@@ -173,11 +182,11 @@ main() {
   # Install wt binary
   install -d "$prefix"
   install -m 0755 "$source_file" "$prefix/wt"
-  printf 'Installed wt to %s\n' "$prefix/wt"
 
+  local messages_installed=0
   if [ -n "$messages_source" ] && [ -f "$messages_source" ]; then
     install -m 0644 "$messages_source" "$prefix/messages.sh"
-    printf 'Installed messages to %s\n' "$prefix/messages.sh"
+    messages_installed=1
   fi
 
   # Check PATH
@@ -189,16 +198,62 @@ main() {
   if [ "$shell_type" != "none" ]; then
     install_shell_hook "$shell_type" "$prefix/wt"
   else
-    printf 'Skipping shell integration (use --shell zsh or --shell bash to enable)\n'
+    SHELL_HOOK_STATUS=""
+    SHELL_SOURCE_HINT=""
   fi
+
+  # Print installation summary
+  printf '\nInstallation summary:\n'
+  local summary_index=1
+  printf '  %d. Installed wt to %s\n' "$summary_index" "$prefix/wt"
+  summary_index=$((summary_index + 1))
+
+  if [ "$messages_installed" -eq 1 ]; then
+    printf '  %d. Installed messages to %s\n' "$summary_index" "$prefix/messages.sh"
+    summary_index=$((summary_index + 1))
+  fi
+
+  if [ "$shell_type" != "none" ]; then
+    local hook_line="${SHELL_HOOK_STATUS:-}"
+    if [ -z "$hook_line" ]; then
+      local shell_label="$shell_type"
+      case "$shell_type" in
+        zsh) shell_label="Zsh" ;;
+        bash) shell_label="Bash" ;;
+      esac
+      hook_line="Configured shell integration for ${shell_label}."
+    fi
+    printf '  %d. %s\n' "$summary_index" "$hook_line"
+    summary_index=$((summary_index + 1))
+  else
+    printf '  %d. Skipped shell hook setup (use --shell zsh or --shell bash to enable).\n' "$summary_index"
+    summary_index=$((summary_index + 1))
+  fi
+
+  printf '  %d. Configuration is stored in %s (key=value).\n' "$summary_index" "${WT_CONFIG_FILE:-$HOME/.worktree.sh/config.kv}"
 
   # Print next steps
   printf '\nNext steps:\n'
-  printf '  1) In each project you want wt to manage, run `wt init` to capture the current layout as defaults.\n'
-  if [ "$shell_type" = "none" ]; then
-    printf '  2) Optionally add shell hook manually: `wt shell-hook zsh >> ~/.zshrc` or `wt shell-hook bash >> ~/.bashrc`\n'
+  local next_index=1
+  if [ "$shell_type" != "none" ]; then
+    local source_hint="$SHELL_SOURCE_HINT"
+    if [ -z "$source_hint" ]; then
+      case "$shell_type" in
+        zsh) source_hint="source $HOME/.zshrc" ;;
+        bash) source_hint="source $HOME/.bashrc" ;;
+      esac
+    fi
+    printf '  %d. Run `%s%s%s` (or start a new shell) to enable wt auto-cd now.\n' "$next_index" "$STYLE_BLUE_BOLD" "$source_hint" "$COLOR_RESET"
+    next_index=$((next_index + 1))
+  else
+    printf '  %d. Add the shell hook later with `wt shell-hook zsh >> ~/.zshrc` or `wt shell-hook bash >> ~/.bashrc`.\n' "$next_index"
+    next_index=$((next_index + 1))
   fi
-  printf 'Configuration is stored in %s (key=value).\n' "${WT_CONFIG_FILE:-$HOME/.worktree.sh/config.kv}"
+
+  printf '  %d. Run `%swt init%s` in each project so wt tracks your default branch and path (set up wt command tracking).\n' "$next_index" "$STYLE_BLUE_BOLD" "$COLOR_RESET"
+  next_index=$((next_index + 1))
+
+  printf '  %d. To switch CLI language anytime, run `wt config set language zh` (or `en`).\n' "$next_index"
 }
 
 main "$@"
