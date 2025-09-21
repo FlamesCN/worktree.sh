@@ -656,11 +656,11 @@ usage() {
 
   if [ "$WORKING_REPO_PATH_CONFIGURED" -eq 1 ]; then
     dir_text_en="Project directory: ${project_dir_box_display}"
-    dir_text_zh="项目目录: ${project_dir_box_display}"
+    dir_text_zh="${dir_text_en}"
     should_highlight=1
   else
     dir_text_en="Project directory: not set; run wt init inside your repo"
-    dir_text_zh="项目目录: 未定义，请在仓库目录下运行 wt init"
+    dir_text_zh="${dir_text_en}"
   fi
 
   if [ "$should_highlight" -eq 1 ] && [ -t 1 ] && command -v tput >/dev/null 2>&1; then
@@ -704,7 +704,7 @@ usage() {
 
   if [ "$should_highlight" -eq 1 ] && [ "$project_dir_display" != "$project_dir_box_display" ]; then
     dir_banner_en=${dir_banner_en//Project directory: $project_dir_box_display/Project directory: $project_dir_display}
-    dir_banner_zh=${dir_banner_zh//项目目录: $project_dir_box_display/项目目录: $project_dir_display}
+    dir_banner_zh=${dir_banner_zh//Project directory: $project_dir_box_display/Project directory: $project_dir_display}
   fi
 
   case "$LANGUAGE" in
