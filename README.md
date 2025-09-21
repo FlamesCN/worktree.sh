@@ -15,8 +15,7 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 
 ## Why Local Worktrees Matter for Agents
 
-- Until agents can truly self-dispatch, they still need a “local PR” checkpoint; a worktree is the sandbox where you polish changes before anything hits a hosted platform.
-- Instead of handing the entire flow to a Claude Code subagent, keeping a local worktree lets you intervene at will and keeps the primary agent’s context lightweight.
+- A worktree hard-isolates each agent’s context—filesystem, git history, env—so runs never cross-contaminate, the primary agent keeps its context window free, and you can hop in at any moment instead of being locked out by a non-interactive Claude Code subagent.
 - Spin up separate worktrees for high-variance explorations—think Claude Code “gacha” pulls on front-end UI—while Codex runs deterministic backend tasks that don’t contend for the same resources.
 - As models stretch into long-running sessions (minutes, hours, or more), parallel worktrees are a practical way to keep multiple agents or tasks moving without stepping on each other.
 - Solo developers can stay entirely local: agent-to-agent collaboration happens inside these worktrees, and pushing to a remote only matters if you need Codex Web, Codex PR Review, Claude Code PR Review, or another external service.

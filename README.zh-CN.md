@@ -13,10 +13,9 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 - 可配置的 shell hook 让 `wt` 命令随处可用，并自动切换到正确目录。
 - 安全的清理工具能删除过期的 worktree 和分支，同时保留业务数据。
 
-## 为什么本地 worktree 依旧关键
+## 为什么你应该尝试使用 worktree
 
-- 在 Agent 能真正自主拆派任务之前，我们仍然需要一个“本地 PR”空间来对改动做最后把关；worktree 就是这个在推送前打磨的沙盒。
-- 相比 Claude Code Subagent，本地 worktree 让你随时插手，并且不会拖慢主 Agent 的上下文。
+- worktree 提供硬隔离的上下文——文件系统、git 历史、环境变量互不污染——主 Agent 的上下文窗口保持轻量，你也随时能插手调试，不像 Claude Code Subagent 那样不可交互。
 - 你可以给高随机性的探索留出单独 worktree——比如用 Claude Code 并行“抽卡”尝试前端 UI——同时让 Codex 处理不互斥的后端任务。
 - 随着模型逐渐走向长时运行（几分钟到数十分钟甚至更久），并行的 worktree 是在本地同时运行多个 Agent 或任务的现实方案。
 - 对单人开发者而言，可以完全在本地完成 Agent 间的协作；除非要触发 Codex Web / Codex PR Review / Claude Code PR Review 等远端服务，推送远端作为可选项。
