@@ -1,0 +1,58 @@
+name: Publish wt CLI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Validate Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Pack tarball
+        run: npm pack
+
+      - name: Smoke test npm install
+        run: |
+          npm config set prefix "$HOME/.npm-global"
+          npm install -g .
+          PATH="$HOME/.npm-global/bin:$PATH" wt version
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js with npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+
+      - name: Publish package with channel based on tag
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          echo "Publishing $tag"
+          if [[ "$tag" == *"-beta"* ]]; then
+            npm publish --access public --tag next
+          else
+            npm publish --access public
+          fi

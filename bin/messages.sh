@@ -307,6 +307,15 @@ msg_en() {
     update_no_positional)
       printf 'update takes no positional arguments'
       ;;
+    update_npm_hint)
+      printf 'wt appears to be managed by npm; update it via npm instead of wt update.'
+      ;;
+    update_npm_command)
+      printf 'Upgrade with: npm update -g worktree.sh@latest'
+      ;;
+    update_legacy_recommend_npm)
+      printf 'Legacy updater running. Consider switching to npm: npm install -g worktree.sh'
+      ;;
     curl_required)
       printf 'curl is required'
       ;;
@@ -655,6 +664,15 @@ msg_zh() {
       ;;
     update_no_positional)
       printf 'update 不接受位置参数'
+      ;;
+    update_npm_hint)
+      printf '检测到 npm 管理的 wt，请通过 npm 更新，而不是使用 wt update。'
+      ;;
+    update_npm_command)
+      printf '升级命令：npm update -g worktree.sh@latest'
+      ;;
+    update_legacy_recommend_npm)
+      printf '正在执行旧的 curl 更新，推荐改用 npm：npm install -g worktree.sh'
       ;;
     curl_required)
       printf '需要安装 curl'

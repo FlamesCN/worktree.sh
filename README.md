@@ -27,10 +27,10 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 
 ## Quick Start
 
-1. Install the CLI (auto-detects shell):
+1. Install the CLI via npm (requires Node.js 14+):
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
+   npm install -g worktree.sh@latest
    ```
 
 2. In the repository you want to parallelize, record it as the default project:
@@ -74,15 +74,36 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 | `wt clean`      | Batch-remove numerically named worktrees and matching `feat/*` branches.                                  |
 | `wt main`       | Output the main repository path.                                                                          |
 | `wt config`     | Inspect or tweak CLI behavior.                                                                            |
-| `wt update`     | Refresh the installed wt script and messages from the official repo (requires `curl`).                    |
+| `wt update`     | Print npm upgrade hints (for npm installs) or fall back to the legacy curl-based updater.                 |
 | `wt uninstall`  | Remove the binary and shell hooks.                                                                        |
 | `wt help`       | Show built-in reference for all commands.                                                                 |
 
 ## Installation Options
 
-The install script copies the latest `bin/wt` to `~/.local/bin/`, registers shell integration, and prompts if the path is missing from `PATH`.
+### npm (recommended)
 
-- Auto-detect (recommended):
+```bash
+npm install -g worktree.sh@latest
+```
+
+This links `wt` from your global npm prefix (check `npm prefix -g` to confirm the directory is on your `PATH`). Reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and run `wt init` inside the repository you want as the default project.
+
+- Stable channel: `npm install -g worktree.sh@latest`
+- Preview channel: `npm install -g worktree.sh@next`
+
+Upgrade with:
+
+```bash
+npm update -g worktree.sh@latest
+```
+
+`wt update` now prints the matching npm command whenever it detects an npm-managed installation.
+
+### Legacy curl installer
+
+The original install script remains available for environments without Node.js:
+
+- Auto-detect shell:
 
   ```bash
   curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
@@ -100,11 +121,7 @@ The install script copies the latest `bin/wt` to `~/.local/bin/`, registers shel
   curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell bash
   ```
 
-After installation reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and run `wt init` inside the repository you want as the default project.
-
-Need a newer build later? Run `wt update` to download the latest script and messages without reinstalling.
-
-Updates are designed to be non-breaking. If we ever ship a breaking change, you can always fall back to `wt uninstall` followed by reinstalling via the install script.
+When installed this way, `wt update` continues to download the latest script via `curl`.
 
 ## Configuration Essentials
 

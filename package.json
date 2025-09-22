@@ -1,0 +1,36 @@
+{
+  "name": "worktree.sh",
+  "version": "0.2.0",
+  "description": "Opinionated git worktree helper CLI.",
+  "license": "AGPL-3.0-only",
+  "bin": {
+    "wt": "./bin/wt"
+  },
+  "files": [
+    "bin",
+    "config-example.kv",
+    "install.sh",
+    "uninstall.sh",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "git",
+    "worktree",
+    "cli"
+  ],
+  "homepage": "https://github.com/notdp/worktree.sh",
+  "bugs": {
+    "url": "https://github.com/notdp/worktree.sh/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/notdp/worktree.sh.git"
+  },
+  "author": "notdp",
+  "preferGlobal": true,
+  "engines": {
+    "node": ">=14"
+  }
+}

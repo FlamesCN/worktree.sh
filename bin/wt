@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly VERSION="0.1.0"
+readonly VERSION="0.2.0"
 
 readonly CONFIG_DIR_DEFAULT="$HOME/.worktree.sh"
 readonly CONFIG_FILE_DEFAULT="$CONFIG_DIR_DEFAULT/config.kv"
@@ -25,6 +25,7 @@ readonly -a CONFIG_DEFAULT_COPY_ENV_FILES=(".env" ".env.local")
 
 readonly WT_UPDATE_WT_URL="https://raw.githubusercontent.com/notdp/worktree.sh/main/bin/wt"
 readonly WT_UPDATE_MESSAGES_URL="https://raw.githubusercontent.com/notdp/worktree.sh/main/bin/messages.sh"
+readonly WT_NPM_PACKAGE_NAME="worktree.sh"
 
 WORKING_REPO_PATH=""
 WORKTREE_NAME_PREFIX=""
@@ -40,7 +41,41 @@ LANGUAGE="$CONFIG_DEFAULT_LANGUAGE"
 WORKING_REPO_PATH_CONFIGURED=0
 COPY_ENV_FILE_SELECTION=()
 
-readonly SCRIPT_SOURCE="${BASH_SOURCE[0]:-${0}}"
+resolve_script_source() {
+  if [ $# -ne 1 ]; then
+    return 1
+  fi
+
+  local source="$1"
+  while [ -L "$source" ]; do
+    local dir target
+    if ! dir=$(cd "$(dirname "$source")" 2>/dev/null && pwd); then
+      break
+    fi
+    if ! target=$(readlink "$source"); then
+      break
+    fi
+    if [ "${target#/}" = "$target" ]; then
+      source="$dir/$target"
+    else
+      source="$target"
+    fi
+  done
+
+  if [ "${source#/}" = "$source" ]; then
+    local absolute_dir
+    if absolute_dir=$(cd "$(dirname "$source")" 2>/dev/null && pwd); then
+      printf '%s/%s\n' "$absolute_dir" "$(basename "$source")"
+    else
+      printf '%s\n' "$source"
+    fi
+  else
+    printf '%s\n' "$source"
+  fi
+}
+
+readonly SCRIPT_SOURCE_RAW="${BASH_SOURCE[0]:-${0}}"
+readonly SCRIPT_SOURCE="$(resolve_script_source "$SCRIPT_SOURCE_RAW")"
 script_dir_tmp=""
 if script_dir_tmp=$(cd "$(dirname "$SCRIPT_SOURCE")" 2>/dev/null && pwd); then
   :
@@ -1873,6 +1908,7 @@ UNINSTALL_USAGE_EN
 
 cmd_update() {
   local prefix="${WT_INSTALL_PREFIX:-$HOME/.local/bin}"
+  local npm_package="$WT_NPM_PACKAGE_NAME"
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -1919,6 +1955,24 @@ UPDATE_USAGE_EN
 
   if [ $# -gt 0 ]; then
     die "$(msg update_no_positional)"
+  fi
+
+  if command -v npm >/dev/null 2>&1; then
+    if npm ls -g --depth=0 "$npm_package" >/dev/null 2>&1; then
+      info "$(msg update_npm_hint)"
+      info "$(msg update_npm_command)"
+      return
+    fi
+
+    case "$SCRIPT_DIR" in
+      */node_modules/*)
+        info "$(msg update_npm_hint)"
+        info "$(msg update_npm_command)"
+        return
+        ;;
+    esac
+
+    info "$(msg update_legacy_recommend_npm)"
   fi
 
   command -v curl >/dev/null 2>&1 || die "$(msg curl_required)"
