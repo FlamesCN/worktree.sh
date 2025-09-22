@@ -70,7 +70,7 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 | `wt list`        | 展示当前追踪的 worktree（`git worktree list` 包装）。                        |
 | `wt add <name>`  | 创建 worktree、分支、复制环境文件、安装依赖并启动 dev server（行为可配置）。 |
 | `wt <name>`      | 直接进入指定 worktree 目录。                                                 |
-| `wt rm [name]`   | 删除当前或指定的 worktree（默认确认，可加 `--yes` 跳过）。                   |
+| `wt rm [name ...]`   | 删除当前或多个指定的 worktree（默认确认，可加 `--yes` 跳过当前目录）。           |
 | `wt clean`       | 批量清理数字命名的 worktree，并删除对应的 `feat/*` 分支。                    |
 | `wt main`        | 输出主仓库路径。                                                             |
 | `wt config`      | 检查或调整 CLI 行为。                                                        |
@@ -125,9 +125,9 @@ wt config list                               # 查看当前配置
 清理过期 worktree 时可连同分支一起处理：
 
 ```bash
-wt rm            # 提示确认后删除当前 worktree
-wt rm 3001 --yes # 不经确认直接删除指定 worktree
-wt clean         # 批量清理所有数字命名的 worktree
+wt rm              # 提示确认后删除当前 worktree
+wt rm feat3001 feat3002    # 一次删除多个指定 worktree
+wt clean           # 批量清理所有数字命名的 worktree
 ```
 
 卸载命令：

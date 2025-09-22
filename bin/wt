@@ -722,7 +722,7 @@ usage() {
   add <name>         创建新 worktree，复制环境文件、安装依赖并启动 dev server（可通过 wt config 调整）
   main               跳转到主 worktree
   list               列出所有 worktree
-  rm [name]          删除 worktree（省略 name 时使用当前目录）
+  rm [name ...]      删除一个或多个 worktree（省略 name 时使用当前目录）
   clean              清理数字 worktree（匹配前缀 + 数字）
   config             查看或更新 worktree.sh 配置
   uninstall          卸载 wt 并清理 shell 集成
@@ -745,7 +745,7 @@ Core commands:
   add <name>         Create a new worktree, copy env files, install deps, start dev server (tunable via wt config)
   main               Jump to the main worktree
   list               List all worktrees
-  rm [name]          Remove a worktree (current directory if name omitted)
+  rm [name ...]      Remove one or more worktrees (current directory if name omitted)
   clean              Remove numeric worktrees (matching prefix + digits)
   config             Inspect or update worktree.sh configuration
   uninstall          Uninstall wt and clean shell hooks
@@ -2050,66 +2050,23 @@ INIT_USAGE_EN
   info "$(msg init_done)"
 }
 
-cmd_remove() {
-  local name=""
-  local assume_yes=0
+remove_worktree_by_name() {
+  if [ $# -ne 2 ]; then
+    return 1
+  fi
 
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      -y|--yes|yes)
-        assume_yes=1
-        ;;
-      -h|--help|help)
-        usage
-        exit 0
-        ;;
-      -*)
-        die "$(msg remove_unknown_option "$1")"
-        ;;
-      *)
-        if [ -n "$name" ]; then
-          die "$(msg remove_accepts_at_most_one)"
-        fi
-        name="$1"
-        ;;
-    esac
-    shift || true
-  done
-
-  local target_path=""
+  local name="$1"
+  local current_abs="$2"
+  local target_path
   local removing_current=0
-  local current_abs
-  current_abs=$(pwd -P)
 
-  if [ -n "$name" ]; then
-    target_path=$(worktree_path_for "$name")
-    if [ ! -d "$target_path" ] && ! worktree_ref_exists "$target_path"; then
-      die "$(msg worktree_not_found "$name")"
-    fi
-    if [ "$current_abs" = "$target_path" ]; then
-      removing_current=1
-    fi
-  else
-    if [ "$current_abs" = "$PROJECT_DIR_ABS" ]; then
-      die "$(msg cannot_remove_main)"
-    fi
-    local current_base
-    current_base=$(basename "$current_abs")
-    if [[ "$current_base" != "$WORKTREE_NAME_PREFIX"* ]]; then
-      die "$(msg specify_worktree_or_inside)"
-    fi
-    name="${current_base#"$WORKTREE_NAME_PREFIX"}"
-    target_path="$current_abs"
+  target_path=$(worktree_path_for "$name")
+  if [ ! -d "$target_path" ] && ! worktree_ref_exists "$target_path"; then
+    die "$(msg worktree_not_found "$name")"
+  fi
+
+  if [ "$current_abs" = "$target_path" ]; then
     removing_current=1
-
-    if [ "$assume_yes" -eq 0 ]; then
-      printf '%s ' "$(msg remove_confirm_prompt "$name")" >&2
-      read -r reply
-      if [ -n "$reply" ] && [[ ! "$reply" =~ ^[Yy]$ ]]; then
-        info "$(msg aborted)"
-        return 1
-      fi
-    fi
   fi
 
   info "$(msg removing_worktree "$target_path")"
@@ -2143,6 +2100,65 @@ cmd_remove() {
     maybe_warn_shell_integration "$PROJECT_DIR_ABS"
     printf '%s\n' "$PROJECT_DIR_ABS"
   fi
+}
+
+cmd_remove() {
+  local assume_yes=0
+  local -a names=()
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -y|--yes|yes)
+        assume_yes=1
+        ;;
+      -h|--help|help)
+        usage
+        exit 0
+        ;;
+      -*)
+        die "$(msg remove_unknown_option "$1")"
+        ;;
+      *)
+        names+=("$1")
+        ;;
+    esac
+    shift || true
+  done
+
+  local current_abs
+  current_abs=$(pwd -P)
+
+  if [ ${#names[@]} -eq 0 ]; then
+    if [ "$current_abs" = "$PROJECT_DIR_ABS" ]; then
+      die "$(msg cannot_remove_main)"
+    fi
+
+    local current_base
+    current_base=$(basename "$current_abs")
+    if [[ "$current_base" != "$WORKTREE_NAME_PREFIX"* ]]; then
+      die "$(msg specify_worktree_or_inside)"
+    fi
+
+    local derived_name
+    derived_name="${current_base#"$WORKTREE_NAME_PREFIX"}"
+
+    if [ "$assume_yes" -eq 0 ]; then
+      printf '%s ' "$(msg remove_confirm_prompt "$derived_name")" >&2
+      read -r reply
+      if [ -n "$reply" ] && [[ ! "$reply" =~ ^[Yy]$ ]]; then
+        info "$(msg aborted)"
+        return 1
+      fi
+    fi
+
+    remove_worktree_by_name "$derived_name" "$current_abs"
+    return
+  fi
+
+  local name
+  for name in "${names[@]}"; do
+    remove_worktree_by_name "$name" "$current_abs"
+  done
 }
 
 cmd_clean() {
