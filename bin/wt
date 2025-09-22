@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly VERSION="0.2.0"
+readonly VERSION="0.2.1-beta"
 
 readonly CONFIG_DIR_DEFAULT="$HOME/.worktree.sh"
 readonly CONFIG_FILE_DEFAULT="$CONFIG_DIR_DEFAULT/config.kv"

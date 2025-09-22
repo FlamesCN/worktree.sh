@@ -1,6 +1,6 @@
 {
   "name": "worktree.sh",
-  "version": "0.2.0",
+  "version": "0.2.1-beta",
   "description": "Opinionated git worktree helper CLI.",
   "license": "AGPL-3.0-only",
   "bin": {
