@@ -48,7 +48,7 @@ detect_shell() {
 
 REMOVAL_SUMMARY=()
 SHELL_REMOVAL_MESSAGE=""
-CONFIG_BACKUP_MESSAGE=""
+CONFIG_REMOVAL_MESSAGE=""
 
 remove_shell_hook() {
   local shell_type="$1"
@@ -121,40 +121,34 @@ remove_shell_hook() {
   SHELL_REMOVAL_MESSAGE=$(printf 'Removed wt shell hook from %s (backup: %s).' "$hook_file" "$backup_path")
 }
 
-backup_config_dir() {
+remove_config_dir() {
   local default_dir="$HOME/.worktree.sh"
   local default_file="$default_dir/config.kv"
   local config_file="${WT_CONFIG_FILE:-$default_file}"
-  local timestamp
-  timestamp=$(date +%Y%m%d_%H%M%S)
 
-  CONFIG_BACKUP_MESSAGE=""
+  CONFIG_REMOVAL_MESSAGE=""
 
-  if [ "$config_file" = "$default_file" ] && [ -d "$default_dir" ]; then
-    local backup_path="${default_dir}.backup.${timestamp}"
-    local candidate="$backup_path"
-    local idx=1
-    while [ -e "$candidate" ]; do
-      candidate="${backup_path}.${idx}"
-      idx=$((idx + 1))
-    done
-    mv "$default_dir" "$candidate"
-    CONFIG_BACKUP_MESSAGE=$(printf 'Backed up wt config from %s to %s.' "$default_dir" "$candidate")
+  if [ "$config_file" = "$default_file" ]; then
+    if [ -d "$default_dir" ]; then
+      rm -rf "$default_dir"
+      CONFIG_REMOVAL_MESSAGE=$(printf 'Removed wt config directory %s.' "$default_dir")
+    else
+      CONFIG_REMOVAL_MESSAGE=$(printf 'wt config directory %s not found (already removed).' "$default_dir")
+    fi
+    return
+  fi
+
+  if [ -d "$config_file" ]; then
+    rm -rf "$config_file"
+    CONFIG_REMOVAL_MESSAGE=$(printf 'Removed wt config directory %s.' "$config_file")
     return
   fi
 
   if [ -f "$config_file" ]; then
-    local backup_path="${config_file}.backup.${timestamp}"
-    local candidate="$backup_path"
-    local idx=1
-    while [ -e "$candidate" ]; do
-      candidate="${backup_path}.${idx}"
-      idx=$((idx + 1))
-    done
-    mv "$config_file" "$candidate"
-    CONFIG_BACKUP_MESSAGE=$(printf 'Backed up wt config from %s to %s.' "$config_file" "$candidate")
+    rm -f "$config_file"
+    CONFIG_REMOVAL_MESSAGE=$(printf 'Removed wt config file %s.' "$config_file")
   else
-    CONFIG_BACKUP_MESSAGE=$(printf 'wt config not found at %s (already removed).' "$config_file")
+    CONFIG_REMOVAL_MESSAGE=$(printf 'wt config not found at %s (already removed).' "$config_file")
   fi
 }
 
@@ -235,9 +229,9 @@ main() {
     REMOVAL_SUMMARY+=("Skipped shell configuration cleanup (use --shell zsh or --shell bash to clean).")
   fi
 
-  backup_config_dir
-  if [ -n "$CONFIG_BACKUP_MESSAGE" ]; then
-    REMOVAL_SUMMARY+=("$CONFIG_BACKUP_MESSAGE")
+  remove_config_dir
+  if [ -n "$CONFIG_REMOVAL_MESSAGE" ]; then
+    REMOVAL_SUMMARY+=("$CONFIG_REMOVAL_MESSAGE")
   else
     REMOVAL_SUMMARY+=("wt config not found (already removed).")
   fi
