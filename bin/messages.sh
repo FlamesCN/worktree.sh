@@ -109,6 +109,36 @@ msg_en() {
     current_worktree_removed)
       printf '📁 Current worktree removed; switching back to the main directory'
       ;;
+    merge_requires_name)
+      printf 'merge requires a worktree name (e.g. wt merge 123)'
+      ;;
+    merge_main_only)
+      printf 'merge only runs on %s (current: %s); checkout the base branch first' "$1" "$2"
+      ;;
+    merge_base_dirty)
+      printf 'main workspace has uncommitted changes; commit or stash before merging'
+      ;;
+    merge_branch_not_found)
+      printf 'feature branch not found: %s' "$1"
+      ;;
+    merge_feat_dirty)
+      printf 'worktree %s has uncommitted changes; commit or stash before merging' "$1"
+      ;;
+    merge_no_commits)
+      printf 'no new commits on %s relative to %s; nothing to merge' "$1" "$2"
+      ;;
+    merge_start)
+      printf '🔀 Merging %s into %s' "$1" "$2"
+      ;;
+    merge_conflict_abort)
+      printf '⚠️ Merge conflict; merge manually or enlist an LLM to resolve/conflict-fix/port changes, then rerun'
+      ;;
+    merge_done)
+      printf '✅ Merge complete: %s → %s' "$1" "$2"
+      ;;
+    merge_cleanup_hint)
+      printf '🧹 Consider cleaning up the worktree with: wt rm %s' "$1"
+      ;;
     cleaning_worktree)
       printf '🧹 Cleaning worktree: %s' "$1"
       ;;
@@ -457,6 +487,36 @@ msg_zh() {
       ;;
     current_worktree_removed)
       printf '📁 当前 worktree 已移除，切换回主目录'
+      ;;
+    merge_requires_name)
+      printf 'merge 需要指定 worktree 名称（例如 wt merge 123）'
+      ;;
+    merge_main_only)
+      printf 'merge 仅支持在 %s 分支执行（当前：%s），请先切换到基线分支' "$1" "$2"
+      ;;
+    merge_base_dirty)
+      printf '主仓存在未提交修改，合并前请提交或暂存'
+      ;;
+    merge_branch_not_found)
+      printf '未找到特性分支：%s' "$1"
+      ;;
+    merge_feat_dirty)
+      printf 'worktree %s 存在未提交修改，合并前请提交或暂存' "$1"
+      ;;
+    merge_no_commits)
+      printf '%s 相对于 %s 没有新的提交，已跳过合并' "$1" "$2"
+      ;;
+    merge_start)
+      printf '🔀 正在将 %s 合并到 %s' "$1" "$2"
+      ;;
+    merge_conflict_abort)
+      printf '⚠️ 合并冲突，请手动合并后自行/使用LLM解决冲突/使用LLM移植变更。'
+      ;;
+    merge_done)
+      printf '✅ 合并完成: %s → %s' "$1" "$2"
+      ;;
+    merge_cleanup_hint)
+      printf '🧹 如需清理请运行：wt rm %s' "$1"
       ;;
     cleaning_worktree)
       printf '🧹 清理 worktree: %s' "$1"

@@ -57,7 +57,16 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
    wt main    # return to the primary repository
    ```
 
-5. Clean up when done:
+5. Merge back once the feature branch is committed:
+
+   ```bash
+   wt merge 3000
+   ```
+
+   - Run from the main worktree with a clean status on both sides.
+   - Fails fast if either worktree has uncommitted changes or the feature branch has nothing new to merge.
+
+6. Clean up when done:
 
    ```bash
    wt rm 3000
@@ -69,6 +78,7 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 | --------------- | --------------------------------------------------------------------------------------------------------- |
 | `wt list`       | Show tracked worktrees (wrapper over `git worktree list`).                                                |
 | `wt add <name>` | Create worktree, branch, copy env files, install deps, launch dev server (behavior controlled by config). |
+| `wt merge <name>` | Merge the feature branch (`feat/<name>`) into the base branch once both worktrees are clean and committed. |
 | `wt <name>`     | Jump straight into an existing worktree directory.                                                        |
 | `wt rm [name ...]`  | Delete current worktree or any named ones (prompts for current unless `--yes`).                           |
 | `wt clean`      | Batch-remove numerically named worktrees and matching `feat/*` branches.                                  |

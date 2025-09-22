@@ -721,6 +721,7 @@ usage() {
   init               将当前仓库设为 wt 的默认项目
   add <name>         创建新 worktree，复制环境文件、安装依赖并启动 dev server（可通过 wt config 调整）
   main               跳转到主 worktree
+  merge <name>       将指定 worktree 的分支（feat/<name>）合并到主分支
   list               列出所有 worktree
   rm [name ...]      删除一个或多个 worktree（省略 name 时使用当前目录）
   clean              清理数字 worktree（匹配前缀 + 数字）
@@ -744,6 +745,7 @@ Core commands:
   init               Remember this repository as wt's default project
   add <name>         Create a new worktree, copy env files, install deps, start dev server (tunable via wt config)
   main               Jump to the main worktree
+  merge <name>       Merge the feature branch (feat/<name>) back into the base branch
   list               List all worktrees
   rm [name ...]      Remove one or more worktrees (current directory if name omitted)
   clean              Remove numeric worktrees (matching prefix + digits)
@@ -809,6 +811,30 @@ worktree_ref_exists() {
 branch_for() {
   local name="$1"
   printf '%s%s\n' "$WORKTREE_BRANCH_PREFIX" "$name"
+}
+
+detect_repo_default_branch() {
+  local remote_head
+  remote_head=$(git_project symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
+  if [ -n "$remote_head" ]; then
+    remote_head=${remote_head#origin/}
+    if [ -n "$remote_head" ]; then
+      printf '%s\n' "$remote_head"
+      return 0
+    fi
+  fi
+
+  local candidate
+  for candidate in main master; do
+    if git_project show-ref --verify --quiet "refs/heads/$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  if [ -n "${1:-}" ]; then
+    printf '%s\n' "$1"
+  fi
 }
 
 validate_worktree_name() {
@@ -2102,6 +2128,83 @@ remove_worktree_by_name() {
   fi
 }
 
+cmd_merge() {
+  if [ $# -ne 1 ]; then
+    die "$(msg merge_requires_name)"
+  fi
+
+  local name="$1"
+  local branch
+  branch=$(branch_for "$name")
+
+  local current_branch
+  current_branch=$(git_project symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+
+  local base_branch="$WORKING_REPO_BRANCH"
+  if [ -z "$base_branch" ]; then
+    base_branch=$(detect_repo_default_branch "$current_branch")
+  fi
+
+  local current_display="$current_branch"
+  if [ -z "$current_display" ]; then
+    current_display='(detached)'
+  fi
+
+  if [ -z "$base_branch" ]; then
+    die "$(msg merge_main_only main "$current_display")"
+  fi
+
+  if [ "$current_display" = '(detached)' ]; then
+    die "$(msg merge_main_only "$base_branch" "$current_display")"
+  fi
+
+  if [ "$current_branch" != "$base_branch" ]; then
+    die "$(msg merge_main_only "$base_branch" "$current_branch")"
+  fi
+
+  if [ -n "$(git_project status --porcelain)" ]; then
+    die "$(msg merge_base_dirty)"
+  fi
+
+  if [ "$branch" = "$base_branch" ]; then
+    die "$(msg merge_main_only "$base_branch" "$current_branch")"
+  fi
+
+  if ! git_project show-ref --verify --quiet "refs/heads/$branch"; then
+    die "$(msg merge_branch_not_found "$branch")"
+  fi
+
+  local worktree_path
+  worktree_path=$(worktree_path_for "$name")
+  if [ -d "$worktree_path" ]; then
+    local worktree_status
+    worktree_status=$(git -C "$worktree_path" status --porcelain 2>/dev/null || true)
+    if [ -n "$worktree_status" ]; then
+      die "$(msg merge_feat_dirty "$worktree_path")"
+    fi
+  fi
+
+  local ahead_count
+  ahead_count=$(git_project rev-list --count "$base_branch..$branch" 2>/dev/null || true)
+  if [ -z "$ahead_count" ]; then
+    ahead_count=0
+  fi
+
+  if [ "$ahead_count" -eq 0 ]; then
+    info "$(msg merge_no_commits "$branch" "$base_branch")"
+    return
+  fi
+
+  info "$(msg merge_start "$branch" "$base_branch")"
+  if git_project merge --no-edit "$branch" >&2; then
+    info "$(msg merge_done "$branch" "$base_branch")"
+    info "$(msg merge_cleanup_hint "$name")"
+  else
+    git_project merge --abort >&2 || true
+    die "$(msg merge_conflict_abort)"
+  fi
+}
+
 cmd_remove() {
   local assume_yes=0
   local -a names=()
@@ -2272,6 +2375,9 @@ main() {
     add)
       [ $# -ge 1 ] || die "$(msg add_requires_name)"
       cmd_add "$@"
+      ;;
+    merge)
+      cmd_merge "$@"
       ;;
     rm|remove)
       cmd_remove "$@"
