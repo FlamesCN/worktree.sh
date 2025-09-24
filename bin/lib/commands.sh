@@ -977,6 +977,82 @@ cmd_remove_global() {
   done
 }
 
+cmd_detach() {
+  local force=0
+  local slug=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    -y | --yes | --force)
+      force=1
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    --*)
+      die "$(msg detach_unknown_option "$1")"
+      ;;
+    *)
+      if [ -n "$slug" ]; then
+        die "$(msg unexpected_extra_argument "$1")"
+      fi
+      slug="$1"
+      ;;
+    esac
+    shift || true
+  done
+
+  case "$CURRENT_SCOPE" in
+  project)
+    if [ -z "$slug" ]; then
+      if [ -n "$PROJECT_SLUG" ]; then
+        slug="$PROJECT_SLUG"
+      elif [ -n "$PROJECT_DIR_ABS" ]; then
+        slug=$(project_slug_for_path "$PROJECT_DIR_ABS" 2> /dev/null || true)
+      fi
+    fi
+    if [ -z "$slug" ]; then
+      die "$(msg detach_project_missing "unknown")"
+    fi
+    ;;
+  global)
+    project_registry_collect
+    if [ "$PROJECT_REGISTRY_COUNT" -eq 0 ]; then
+      die "$(msg detach_no_projects)"
+    fi
+
+    if [ -z "$slug" ]; then
+      if ! project_prompt_select; then
+        if [ "$PROJECT_REGISTRY_COUNT" -eq 0 ]; then
+          die "$(msg detach_no_projects)"
+        fi
+        die "$(msg project_selection_cancelled)"
+      fi
+
+      local idx="$PROJECT_SELECTION_INDEX"
+      if [ "$idx" -lt 0 ]; then
+        die "$(msg project_selection_cancelled)"
+      fi
+
+      slug="${PROJECT_REGISTRY_SLUGS[$idx]}"
+    fi
+    ;;
+  unconfigured)
+    die "$(msg project_dir_unset)"
+    ;;
+  esac
+
+  if [ -z "$slug" ]; then
+    die "$(msg detach_project_missing "unknown")"
+  fi
+
+  local rc=0
+  project_detach "$slug" "$force"
+  rc=$?
+  return "$rc"
+}
+
 cmd_clean() {
   [ $# -eq 0 ] || die "$(msg clean_no_args)"
   local removed=0
@@ -1243,6 +1319,20 @@ wt_main() {
       ;;
     global)
       cmd_remove_global "$@"
+      ;;
+    unconfigured)
+      die "$(msg project_dir_unset)"
+      ;;
+    esac
+    ;;
+  detach)
+    case "$scope" in
+    project)
+      resolve_project
+      cmd_detach "$@"
+      ;;
+    global)
+      cmd_detach "$@"
       ;;
     unconfigured)
       die "$(msg project_dir_unset)"

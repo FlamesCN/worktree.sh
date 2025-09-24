@@ -82,6 +82,7 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 | `wt <name>`     | Jump straight into an existing worktree directory.                                                        |
 | `wt rm [name ...]`  | Delete current worktree or any named ones (prompts for current unless `--yes`).                           |
 | `wt clean`      | Batch-remove numerically named worktrees and matching `feat/*` branches.                                  |
+| `wt detach [slug]` | Remove wt-managed worktrees for a project and delete its registry entry (add `-y` to skip prompts).         |
 | `wt main`       | Output the main repository path.                                                                          |
 | `wt config`     | Inspect or tweak CLI behavior.                                                                            |
 | `wt reinstall`  | Run the bundled `uninstall.sh` followed by `install.sh` to refresh wt in place.                          |
@@ -138,6 +139,7 @@ When a worktree is obsolete, prune the directory and branch in one go:
 wt rm              # Removes current worktree with confirmation
 wt rm feat3001 feat3002    # Removes multiple named worktrees without prompting
 wt clean           # Clears all numerically named worktrees
+wt detach -y       # Removes all wt-managed worktrees for this project and unregisters it
 ```
 
 To uninstall:

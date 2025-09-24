@@ -82,6 +82,7 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 | `wt <name>`      | 直接进入指定 worktree 目录。                                                 |
 | `wt rm [name ...]`   | 删除当前或多个指定的 worktree（默认确认，可加 `--yes` 跳过当前目录）。           |
 | `wt clean`       | 批量清理数字命名的 worktree，并删除对应的 `feat/*` 分支。                    |
+| `wt detach [slug]` | 清理指定项目由 wt 创建的 worktree 并删除注册信息（加 `-y` 跳过全部确认）。 |
 | `wt main`        | 输出主仓库路径。                                                             |
 | `wt config`      | 检查或调整 CLI 行为。                                                        |
 | `wt reinstall`   | 依次执行仓库内的 `uninstall.sh` 与 `install.sh`，重新部署 wt。                |
@@ -138,6 +139,7 @@ wt config list                               # 查看当前配置
 wt rm              # 提示确认后删除当前 worktree
 wt rm feat3001 feat3002    # 一次删除多个指定 worktree
 wt clean           # 批量清理所有数字命名的 worktree
+wt detach -y       # 清理当前项目的 wt 工作树并解除注册（强制模式）
 ```
 
 卸载命令：

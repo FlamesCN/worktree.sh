@@ -172,6 +172,39 @@ msg_en() {
   remove_failed)
     printf 'Failed to remove %s' "$1"
     ;;
+  detach_prompt_worktree)
+    printf 'Remove worktree %s? [Y/n]' "$1"
+    ;;
+  detach_abort_user)
+    printf 'Detach aborted by user'
+    ;;
+  detach_remove_failed)
+    printf 'Failed to remove %s: %s' "$1" "$2"
+    ;;
+  detach_summary_removed)
+    printf 'Removed %s worktree(s)' "$1"
+    ;;
+  detach_summary_failed)
+    printf 'Failed to remove %s (%s)' "$1" "$2"
+    ;;
+  detach_summary_skipped)
+    printf 'Skipped %s pending worktree(s)' "$1"
+    ;;
+  detach_prompt_project)
+    printf 'Detach project %s? [Y/n]' "$1"
+    ;;
+  detach_done)
+    printf '✅ Detached project %s' "$1"
+    ;;
+  detach_project_missing)
+    printf 'Project %s is not configured; nothing to detach' "$1"
+    ;;
+  detach_no_projects)
+    printf 'No projects are registered yet; run wt init first'
+    ;;
+  detach_unknown_option)
+    printf 'unknown option for detach: %s' "$1"
+    ;;
   clean_confirm_prompt)
     printf 'Remove numeric worktree %s from project %s (%s)? [Y/n]' "$1" "$2" "$3"
     ;;
@@ -632,6 +665,39 @@ msg_zh() {
     ;;
   remove_failed)
     printf '删除 %s 失败' "$1"
+    ;;
+  detach_prompt_worktree)
+    printf '移除工作树 %s？[Y/n]' "$1"
+    ;;
+  detach_abort_user)
+    printf '用户已取消 detach 操作'
+    ;;
+  detach_remove_failed)
+    printf '移除 %s 失败：%s' "$1" "$2"
+    ;;
+  detach_summary_removed)
+    printf '已移除 %s 个工作树' "$1"
+    ;;
+  detach_summary_failed)
+    printf '移除失败：%s（%s）' "$1" "$2"
+    ;;
+  detach_summary_skipped)
+    printf '已跳过 %s 个剩余工作树' "$1"
+    ;;
+  detach_prompt_project)
+    printf '解除项目 %s 的注册？[Y/n]' "$1"
+    ;;
+  detach_done)
+    printf '✅ 已解除项目 %s 的注册' "$1"
+    ;;
+  detach_project_missing)
+    printf '未找到项目 %s，未执行任何操作' "$1"
+    ;;
+  detach_no_projects)
+    printf '当前没有已注册的项目，请先运行 wt init'
+    ;;
+  detach_unknown_option)
+    printf 'detach 的未知参数：%s' "$1"
     ;;
   config_set_requires)
     printf 'config set 需要 <key> <value>'

@@ -416,6 +416,88 @@ worktree_match_reset() {
   MATCH_WORKTREE_COUNT=0
 }
 
+PROJECT_WORKTREE_PATHS=()
+PROJECT_WORKTREE_NAMES=()
+PROJECT_WORKTREE_BRANCHES=()
+PROJECT_WORKTREE_BRANCH_SUFFIXES=()
+PROJECT_WORKTREE_COUNT=0
+PROJECT_WORKTREE_REPO_PATH=""
+PROJECT_WORKTREE_REPO_EXISTS=0
+PROJECT_WORKTREE_CONFIG_DIR=""
+PROJECT_WORKTREE_CONFIG_FILE=""
+PROJECT_WORKTREE_STATUS=""
+PROJECT_WORKTREE_LAST_ERROR=""
+PROJECT_WORKTREE_SLUG=""
+PROJECT_REMOVE_LAST_ERROR=""
+
+project_worktree_reset() {
+  PROJECT_WORKTREE_PATHS=()
+  PROJECT_WORKTREE_NAMES=()
+  PROJECT_WORKTREE_BRANCHES=()
+  PROJECT_WORKTREE_BRANCH_SUFFIXES=()
+  PROJECT_WORKTREE_COUNT=0
+  PROJECT_WORKTREE_REPO_PATH=""
+  PROJECT_WORKTREE_REPO_EXISTS=0
+  PROJECT_WORKTREE_CONFIG_DIR=""
+  PROJECT_WORKTREE_CONFIG_FILE=""
+  PROJECT_WORKTREE_STATUS=""
+  PROJECT_WORKTREE_LAST_ERROR=""
+  PROJECT_WORKTREE_SLUG=""
+  PROJECT_REMOVE_LAST_ERROR=""
+}
+
+project_worktree_maybe_add() {
+  local path="${1:-}"
+  local branch="${2:-}"
+  local repo_path="${3:-}"
+  local dir_prefix="${4:-}"
+  local branch_prefix="${5:-}"
+
+  if [ -z "$path" ] || [ "$path" = "$repo_path" ]; then
+    return 0
+  fi
+
+  local base
+  base=$(basename "$path")
+
+  local include=0
+  local suffix=""
+
+  if [ -n "$dir_prefix" ] && [[ "$base" == "$dir_prefix"* ]]; then
+    suffix="${base#"$dir_prefix"}"
+    include=1
+  fi
+
+  if [ "$include" -eq 0 ] && [ -n "$branch_prefix" ] && [ -n "$branch" ] && [[ "$branch" == "$branch_prefix"* ]]; then
+    suffix="${branch#"$branch_prefix"}"
+    include=1
+  fi
+
+  if [ "$include" -eq 0 ] && [ -z "$dir_prefix" ] && [ -z "$branch_prefix" ]; then
+    suffix="$base"
+    include=1
+  fi
+
+  if [ "$include" -eq 0 ]; then
+    return 0
+  fi
+
+  if [ -z "$suffix" ]; then
+    suffix="$base"
+  fi
+
+  local branch_suffix="$branch"
+  if [ -n "$branch" ] && [ -n "$branch_prefix" ] && [[ "$branch" == "$branch_prefix"* ]]; then
+    branch_suffix="${branch#"$branch_prefix"}"
+  fi
+
+  PROJECT_WORKTREE_PATHS+=("$path")
+  PROJECT_WORKTREE_NAMES+=("$suffix")
+  PROJECT_WORKTREE_BRANCHES+=("$branch")
+  PROJECT_WORKTREE_BRANCH_SUFFIXES+=("$branch_suffix")
+  PROJECT_WORKTREE_COUNT=${#PROJECT_WORKTREE_PATHS[@]}
+}
+
 tty_menu_select() {
   if [ $# -lt 3 ]; then
     return 1
@@ -697,6 +779,338 @@ collect_global_worktree_matches() {
   done
 
   MATCH_WORKTREE_COUNT=${#MATCH_WORKTREE_NAMES[@]}
+  return 0
+}
+
+project_worktrees_for_slug() {
+  local slug="${1:-}"
+
+  project_worktree_reset
+
+  if [ -z "$slug" ]; then
+    PROJECT_WORKTREE_STATUS='missing-slug'
+    PROJECT_WORKTREE_LAST_ERROR='slug required'
+    return 1
+  fi
+
+  PROJECT_WORKTREE_SLUG="$slug"
+
+  local config_dir
+  config_dir=$(project_config_dir_for_slug "$slug" 2> /dev/null || true)
+  if [ -z "$config_dir" ] || [ ! -d "$config_dir" ]; then
+    PROJECT_WORKTREE_STATUS='missing-config'
+    PROJECT_WORKTREE_LAST_ERROR='project config missing'
+    return 1
+  fi
+
+  PROJECT_WORKTREE_CONFIG_DIR="$config_dir"
+
+  local config_file="$config_dir/$CONFIG_PROJECT_FILENAME"
+  if [ ! -f "$config_file" ]; then
+    PROJECT_WORKTREE_STATUS='missing-config'
+    PROJECT_WORKTREE_LAST_ERROR='project config missing'
+    return 1
+  fi
+
+  PROJECT_WORKTREE_CONFIG_FILE="$config_file"
+
+  local repo_path
+  repo_path=$(config_file_get_value "$config_file" "repo.path" 2> /dev/null || true)
+  PROJECT_WORKTREE_REPO_PATH="$repo_path"
+  if [ -z "$repo_path" ]; then
+    PROJECT_WORKTREE_STATUS='repo-missing'
+    PROJECT_WORKTREE_LAST_ERROR='repo.path not set'
+    PROJECT_WORKTREE_REPO_EXISTS=0
+    return 0
+  fi
+
+  if [ -d "$repo_path" ]; then
+    PROJECT_WORKTREE_REPO_EXISTS=1
+  else
+    PROJECT_WORKTREE_STATUS='repo-missing'
+    PROJECT_WORKTREE_LAST_ERROR='repository path missing'
+    PROJECT_WORKTREE_REPO_EXISTS=0
+    return 0
+  fi
+
+  local branch_prefix
+  branch_prefix=$(config_file_get_value "$config_file" "add.branch-prefix" 2> /dev/null || true)
+  if [ -z "$branch_prefix" ]; then
+    branch_prefix="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
+  fi
+
+  local dir_prefix=""
+  local repo_base
+  repo_base=$(basename "$repo_path")
+  if [ -n "$repo_base" ] && [ "$repo_base" != "." ]; then
+    dir_prefix="$repo_base."
+  fi
+
+  PROJECT_WORKTREE_STATUS='ok'
+
+  local list_output=""
+  if ! list_output=$(git_at_path "$repo_path" worktree list --porcelain 2>&1); then
+    PROJECT_WORKTREE_STATUS='git-error'
+    PROJECT_WORKTREE_LAST_ERROR="$list_output"
+    return 1
+  fi
+
+  local line="" entry_path="" entry_branch=""
+  while IFS= read -r line; do
+    if [ -z "$line" ]; then
+      if [ -n "$entry_path" ]; then
+        project_worktree_maybe_add "$entry_path" "$entry_branch" "$repo_path" "$dir_prefix" "$branch_prefix"
+      fi
+      entry_path=""
+      entry_branch=""
+      continue
+    fi
+
+    case "$line" in
+    worktree\ *)
+      if [ -n "$entry_path" ]; then
+        project_worktree_maybe_add "$entry_path" "$entry_branch" "$repo_path" "$dir_prefix" "$branch_prefix"
+      fi
+      entry_path="${line#worktree }"
+      entry_branch=""
+      ;;
+    branch\ *)
+      entry_branch="${line#branch }"
+      entry_branch="${entry_branch#refs/heads/}"
+      ;;
+    esac
+  done < <(printf '%s\n' "$list_output")
+
+  if [ -n "$entry_path" ]; then
+    project_worktree_maybe_add "$entry_path" "$entry_branch" "$repo_path" "$dir_prefix" "$branch_prefix"
+  fi
+
+  return 0
+}
+
+project_remove_worktree() {
+  local path="${1:-}"
+  local branch="${2:-}"
+
+  PROJECT_REMOVE_LAST_ERROR=""
+
+  local repo_path="$PROJECT_WORKTREE_REPO_PATH"
+  if [ -z "$repo_path" ] || [ "$PROJECT_WORKTREE_REPO_EXISTS" -ne 1 ]; then
+    PROJECT_REMOVE_LAST_ERROR='repository unavailable'
+    return 1
+  fi
+
+  if [ -z "$path" ]; then
+    PROJECT_REMOVE_LAST_ERROR='worktree path missing'
+    return 1
+  fi
+
+  local removal_failure=0
+  local removal_output=""
+
+  if removal_output=$(git_at_path "$repo_path" worktree remove "$path" --force 2>&1); then
+    :
+  else
+    removal_failure=1
+    PROJECT_REMOVE_LAST_ERROR="$removal_output"
+  fi
+
+  if [ "$removal_failure" -eq 1 ] && [ ! -d "$path" ]; then
+    git_at_path "$repo_path" worktree prune --expire now > /dev/null 2>&1 || true
+    local verify_output
+    verify_output=$(git_at_path "$repo_path" worktree list --porcelain 2>&1 || true)
+    if ! printf '%s\n' "$verify_output" | grep -Fq "worktree $path"; then
+      removal_failure=0
+      PROJECT_REMOVE_LAST_ERROR=""
+    fi
+  fi
+
+  if [ "$removal_failure" -eq 1 ]; then
+    if [ -n "$PROJECT_REMOVE_LAST_ERROR" ]; then
+      local first_line
+      IFS=$'\n' read -r first_line _rest <<< "$PROJECT_REMOVE_LAST_ERROR"
+      PROJECT_REMOVE_LAST_ERROR="$first_line"
+    else
+      PROJECT_REMOVE_LAST_ERROR='worktree remove failed'
+    fi
+    return 1
+  fi
+
+  if [ -n "$branch" ] && git_at_path "$repo_path" show-ref --verify --quiet "refs/heads/$branch"; then
+    if git_at_path "$repo_path" branch -D "$branch" > /dev/null 2>&1; then
+      info "$(msg removed_branch "$branch")"
+    fi
+  fi
+
+  return 0
+}
+
+project_detach() {
+  if [ $# -lt 1 ]; then
+    return 1
+  fi
+
+  local slug="$1"
+  local force="${2:-0}"
+
+  if ! project_worktrees_for_slug "$slug"; then
+    case "$PROJECT_WORKTREE_STATUS" in
+    missing-config | missing-slug)
+      info "$(msg detach_project_missing "$slug")"
+      return 1
+      ;;
+    git-error)
+      local err="$PROJECT_WORKTREE_LAST_ERROR"
+      if [ -n "$err" ]; then
+        info "$(msg git_command_failed "$PROJECT_WORKTREE_REPO_PATH")"
+        info "$err"
+      fi
+      return 1
+      ;;
+    *)
+      info "$(msg detach_project_missing "$slug")"
+      return 1
+      ;;
+    esac
+  fi
+
+  if [ -z "$PROJECT_WORKTREE_CONFIG_DIR" ] || [ ! -d "$PROJECT_WORKTREE_CONFIG_DIR" ]; then
+    PROJECT_WORKTREE_STATUS='missing-config'
+    return 1
+  fi
+
+  if [ -z "$PROJECT_WORKTREE_CONFIG_FILE" ] || [ ! -f "$PROJECT_WORKTREE_CONFIG_FILE" ]; then
+    PROJECT_WORKTREE_STATUS='missing-config'
+    return 1
+  fi
+
+  if [ "$PROJECT_WORKTREE_STATUS" = "repo-missing" ]; then
+    info "$(msg project_path_missing "$slug")"
+  fi
+
+  local removed_count=0
+  local failure_count=0
+  local skipped_count=0
+  local aborted=0
+  local current_removed=0
+  local current_dir
+  current_dir=$(pwd -P 2> /dev/null || pwd)
+  local -a failure_paths=()
+  local -a failure_reasons=()
+
+  if [ "$PROJECT_WORKTREE_REPO_EXISTS" -eq 1 ] && [ "$PROJECT_WORKTREE_COUNT" -gt 0 ]; then
+    local idx=0
+    while [ "$idx" -lt "$PROJECT_WORKTREE_COUNT" ]; do
+      local path="${PROJECT_WORKTREE_PATHS[$idx]}"
+      local branch="${PROJECT_WORKTREE_BRANCHES[$idx]}"
+
+      if [ "$force" -ne 1 ]; then
+        printf '%s ' "$(msg detach_prompt_worktree "$path")" >&2
+        local reply=""
+        if ! IFS= read -r reply; then
+          aborted=1
+          skipped_count=$((PROJECT_WORKTREE_COUNT - idx))
+          break
+        fi
+        if [ -n "$reply" ] && [[ ! "$reply" =~ ^[Yy]$ ]]; then
+          aborted=1
+          skipped_count=$((PROJECT_WORKTREE_COUNT - idx))
+          break
+        fi
+      fi
+
+      info "$(msg removing_worktree "$path")"
+      if project_remove_worktree "$path" "$branch"; then
+        removed_count=$((removed_count + 1))
+        info "$(msg worktree_removed "$path")"
+        if [ "$current_dir" = "$path" ]; then
+          current_removed=1
+        fi
+      else
+        failure_count=$((failure_count + 1))
+        local reason="$PROJECT_REMOVE_LAST_ERROR"
+        if [ -z "$reason" ]; then
+          reason='unknown error'
+        fi
+        failure_paths+=("$path")
+        failure_reasons+=("$reason")
+        info "$(msg detach_remove_failed "$path" "$reason")"
+      fi
+
+      idx=$((idx + 1))
+    done
+  fi
+
+  if [ "$aborted" -eq 1 ]; then
+    info "$(msg detach_abort_user)"
+    info "$(msg detach_summary_removed "$removed_count")"
+    if [ "$failure_count" -gt 0 ]; then
+      local failure_idx
+      for failure_idx in "${!failure_paths[@]}"; do
+        info "$(msg detach_summary_failed "${failure_paths[$failure_idx]}" "${failure_reasons[$failure_idx]}")"
+      done
+    fi
+    if [ "$skipped_count" -gt 0 ]; then
+      info "$(msg detach_summary_skipped "$skipped_count")"
+    fi
+    return 1
+  fi
+
+  if [ -d "$PROJECT_WORKTREE_CONFIG_DIR" ]; then
+    if [ "$force" -ne 1 ]; then
+      printf '%s ' "$(msg detach_prompt_project "$slug")" >&2
+      local reply=""
+      if ! IFS= read -r reply; then
+        info "$(msg detach_abort_user)"
+        return 1
+      fi
+      if [ -n "$reply" ] && [[ ! "$reply" =~ ^[Yy]$ ]]; then
+        info "$(msg detach_abort_user)"
+        info "$(msg detach_summary_removed "$removed_count")"
+        if [ "$failure_count" -gt 0 ]; then
+          local failure_idx
+          for failure_idx in "${!failure_paths[@]}"; do
+            info "$(msg detach_summary_failed "${failure_paths[$failure_idx]}" "${failure_reasons[$failure_idx]}")"
+          done
+        fi
+        return 1
+      fi
+    fi
+
+    if ! rm -rf "$PROJECT_WORKTREE_CONFIG_DIR"; then
+      info "$(msg detach_remove_failed "$PROJECT_WORKTREE_CONFIG_DIR" "rm -rf failed")"
+      return 1
+    fi
+  fi
+
+  config_cache_reset
+  project_context_reset
+  project_context_detect_from_cwd || true
+  if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -eq 0 ]; then
+    config_context_apply_scope
+  fi
+
+  info "$(msg detach_summary_removed "$removed_count")"
+
+  if [ "$failure_count" -gt 0 ]; then
+    local failure_idx
+    for failure_idx in "${!failure_paths[@]}"; do
+      info "$(msg detach_summary_failed "${failure_paths[$failure_idx]}" "${failure_reasons[$failure_idx]}")"
+    done
+  fi
+
+  info "$(msg detach_done "$slug")"
+
+  if [ "$current_removed" -eq 1 ] && [ -n "$PROJECT_WORKTREE_REPO_PATH" ]; then
+    info "$(msg clean_switch_back)"
+    maybe_warn_shell_integration "$PROJECT_WORKTREE_REPO_PATH"
+    printf '%s\n' "$PROJECT_WORKTREE_REPO_PATH"
+  fi
+
+  if [ "$failure_count" -gt 0 ]; then
+    return 2
+  fi
+
   return 0
 }
 
