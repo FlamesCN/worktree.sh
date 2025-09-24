@@ -2802,6 +2802,7 @@ cmd_add() {
   local effective_port=""
   local skip_dev=0
   local skip_dev_port=""
+  local skip_dev_reason=""
   local base_branch="$WORKING_REPO_BRANCH"
 
   if [[ "$name" =~ ^[0-9]+$ ]]; then
@@ -2849,8 +2850,12 @@ cmd_add() {
       if [ -n "$port_candidate" ] && [ "$port_candidate" -lt 1024 ]; then
         skip_dev=1
         skip_dev_port="$port_candidate"
+        skip_dev_reason="reserved"
       elif [ -n "$port_candidate" ] && [ "$port_candidate" -gt 65535 ]; then
         info "$(msg fallback_default_port)"
+      else
+        skip_dev=1
+        skip_dev_reason="no_port"
       fi
     fi
   fi
@@ -2917,7 +2922,11 @@ cmd_add() {
 
   if [ "$run_dev" -eq 1 ]; then
     if [ "$skip_dev" -eq 1 ]; then
-      info "$(msg dev_skipped_reserved_port "$skip_dev_port")"
+      if [ "$skip_dev_reason" = "reserved" ]; then
+        info "$(msg dev_skipped_reserved_port "$skip_dev_port")"
+      elif [ "$skip_dev_reason" = "no_port" ]; then
+        info "$(msg dev_skipped_no_port)"
+      fi
     else
       start_dev_server "$worktree_path" "$serve_command" "$effective_port"
     fi

@@ -49,6 +49,9 @@ msg_en() {
   dev_skipped_no_command)
     printf '⚙️  Dev command skipped (no command configured)'
     ;;
+  dev_skipped_no_port)
+    printf '⚙️  Dev command skipped (no port inferred from worktree name)'
+    ;;
   auto_cd_pending)
     printf '💡 wt auto-cd appears inactive. Try running: %s' "$1"
     ;;
@@ -581,6 +584,9 @@ msg_zh() {
     ;;
   dev_skipped_no_command)
     printf '⚙️  未配置开发命令，已跳过'
+    ;;
+  dev_skipped_no_port)
+    printf '⚙️  未能从名称推导端口，已跳过开发命令'
     ;;
   auto_cd_pending)
     printf '💡 检测到 wt 自动切换目录尚未生效。尝试运行：%s' "$1"
