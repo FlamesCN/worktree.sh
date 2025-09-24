@@ -189,12 +189,13 @@ wt() {
   local __wt_bin="__WT_BIN_PATH__"
 
   if [ ! -x "$__wt_bin" ]; then
-    if __wt_bin="$(type -P wt 2>/dev/null)"; then
-      :
-    elif __wt_bin="$(command -v wt 2>/dev/null)"; then
-      :
+    local __wt_resolved=""
+    if __wt_resolved="$(type -P wt 2>/dev/null)" && [ -x "$__wt_resolved" ]; then
+      __wt_bin="$__wt_resolved"
+    elif __wt_resolved="$(command -v wt 2>/dev/null)" && [ -n "$__wt_resolved" ] && [ -x "$__wt_resolved" ]; then
+      __wt_bin="$__wt_resolved"
     else
-      printf 'wt: unable to locate wt executable\n' >&2
+      printf 'zsh: command not found: wt\n' >&2
       return 127
     fi
   fi

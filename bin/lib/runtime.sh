@@ -1662,6 +1662,14 @@ command_exists_for_line() {
   return 1
 }
 
+node_lockfile_present() {
+  local worktree_path="${1:?worktree path is required}"
+  if [ -f "$worktree_path/package-lock.json" ] || [ -f "$worktree_path/npm-shrinkwrap.json" ]; then
+    return 0
+  fi
+  return 1
+}
+
 run_install_command() {
   local worktree_path="${1:?worktree path is required}"
   local command_line="${2:-}"
@@ -1674,6 +1682,45 @@ run_install_command() {
   if ! command_exists_for_line "$command_line"; then
     info "$(msg command_not_found "$command_line")"
     return
+  fi
+
+  local complex_command=0
+  case "$command_line" in
+  *'&&'* | *'||'* | *';'* | *'|'*)
+    complex_command=1
+    ;;
+  esac
+
+  if [ "$complex_command" -eq 0 ]; then
+    local -a tokens=()
+    local token=""
+    IFS=' ' read -r -a tokens <<< "$command_line"
+    local -a filtered=()
+    for token in "${tokens[@]}"; do
+      if [[ "$token" == *=* ]]; then
+        continue
+      fi
+      filtered+=("$token")
+    done
+
+    if [ ${#filtered[@]} -gt 0 ]; then
+      local primary="${filtered[0]}"
+      local subcommand=""
+      if [ ${#filtered[@]} -ge 2 ]; then
+        subcommand="${filtered[1]}"
+      fi
+
+      if [ "$primary" = "npm" ]; then
+        case "$subcommand" in
+        ci | install)
+          if ! node_lockfile_present "$worktree_path"; then
+            info "$(msg install_skipped_missing_lock "$command_line")"
+            return
+          fi
+          ;;
+        esac
+      fi
+    fi
   fi
 
   info "$(msg installing_dependencies "$command_line")"

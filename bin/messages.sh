@@ -34,6 +34,9 @@ msg_en() {
   install_skipped_no_command)
     printf '⚙️  Dependencies skipped (no command configured)'
     ;;
+  install_skipped_missing_lock)
+    printf '⚠️  Skipping dependency install (%s): no package-lock.json or npm-shrinkwrap.json found' "$1"
+    ;;
   install_detected)
     printf '🔍 Auto-detected install command: %s' "$1"
     ;;
@@ -491,6 +494,9 @@ msg_zh() {
     ;;
   install_skipped_no_command)
     printf '⚙️  未配置安装命令，跳过依赖安装'
+    ;;
+  install_skipped_missing_lock)
+    printf '⚠️  缺少 package-lock.json 或 npm-shrinkwrap.json，已跳过依赖安装（%s）' "$1"
     ;;
   install_detected)
     printf '🔍 自动检测到安装命令：%s' "$1"

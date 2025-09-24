@@ -89,7 +89,7 @@
 
 - `wt config list` still rejects global use with `wt: This command must be run inside a configured project`; decide whether the CLI should print defaults instead or keep the guardrail.
 - Multi-project shortcuts (`wt review`, `wt path review`, and piped `wt rm tempglobal`) now succeed from a non-interactive shell, matching the design doc.
-- `wt add` in scratch repos without a lockfile requires disabling `add.install-deps.enabled`; once toggled, worktree lifecycle behaved as expected.
+- `wt add` now skips auto dependency installs when no Node.js lockfile is present, so scratch repos avoid the previous `npm ci` failure without touching `add.install-deps.enabled`.
 - All temporary worktrees/branches (`feat/franxx-ai-report`, `feat/12345`, `feat/qa`, `feat/franxx-store-report`, numeric 1111/9999) were removed; `git worktree list` returns to the pre-test set.
 - Configuration toggles changed during testing were restored to their pre-test values to avoid persisting side effects.
 

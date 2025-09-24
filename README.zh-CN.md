@@ -48,7 +48,7 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
    - 在 `../project.3000` 创建目录
    - 创建并切换到 `feat/3000`
    - 复制 `.env.local` / `.env`
-   - 执行 `npm ci`
+   - 执行 `npm ci`（若缺少 Node.js lock 文件会自动跳过）
    - 启动 `npm run dev`，端口取自名称中的数字（如 3000）
 4. 随时切换工作上下文：
 

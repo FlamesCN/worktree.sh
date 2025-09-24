@@ -48,7 +48,7 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
    - Creates the worktree in `../project.3000`
    - Creates and checks out `feat/3000`
    - Copies `.env.local` / `.env`
-   - Runs `npm ci`
+  - Runs `npm ci` (skips automatically if no Node.js lockfile is present)
    - Starts `npm run dev` on port `3000`
 4. Jump between worktrees anytime:
 

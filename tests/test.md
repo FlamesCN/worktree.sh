@@ -101,8 +101,8 @@
   - status: PASS
 - `wt add demo` + `wt rm demo` (inside second project)
   - expected: create/remove worktree locally
-  - observed: first attempt failed because the scratch repo lacked `package-lock.json`; after toggling `add.install-deps.enabled=false` and `add.serve-dev.enabled=false`, the command succeeded and cleanup removed the worktree; exit 0
-  - status: PASS (with config tweaks)
+  - observed: dependency install was skipped automatically because no lockfile existed; worktree creation and cleanup both succeeded; exit 0
+  - status: PASS
 - `wt clean` (global)
   - expected: enumerate numeric worktrees with confirmation
   - observed: prompts surfaced for `1111`, existing `11222`, and `9999`; piped `y` responses removed each and reported totals; exit 0
@@ -124,5 +124,5 @@
 
 ## Outstanding Issues
 
-- `wt add` defaults to `npm ci`, so scratch repos without a lockfile require temporarily disabling `add.install-deps` (documented above).
+- `wt add` now skips dependency installation when no Node.js lockfile exists, so scratch repos no longer require toggling `add.install-deps` to avoid `npm ci` failures.
 - Non-interactive runs still cannot validate the arrow-key selector path; manual coverage recommended before release candidates.
