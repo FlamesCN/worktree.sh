@@ -1790,7 +1790,6 @@ die() {
 
 usage() {
   local project_dir_box_display="$WORKING_REPO_PATH"
-  local project_dir_display="$WORKING_REPO_PATH"
   local dir_text_en
   local dir_text_zh
   local should_highlight=0
@@ -1802,16 +1801,6 @@ usage() {
   else
     dir_text_en="Project directory: not set; run wt init inside your repo"
     dir_text_zh="${dir_text_en}"
-  fi
-
-  if [ "$should_highlight" -eq 1 ] && [ -t 1 ] && command -v tput > /dev/null 2>&1; then
-    local ansi_cyan ansi_bold ansi_reset
-    ansi_cyan=$(tput setaf 6 2> /dev/null || true)
-    ansi_bold=$(tput bold 2> /dev/null || true)
-    ansi_reset=$(tput sgr0 2> /dev/null || true)
-    if [ -n "$ansi_cyan$ansi_bold" ]; then
-      project_dir_display="${ansi_bold}${ansi_cyan}${project_dir_box_display}${ansi_reset}"
-    fi
   fi
 
   local banner_width_en=${#dir_text_en}
@@ -1839,14 +1828,25 @@ usage() {
   dir_mid_zh=$(printf '%-*s│' "$banner_width_zh" "$dir_text_zh")
   dir_bottom_zh="${fill_zh}╯"
 
-  local dir_banner_en dir_banner_zh
-  dir_banner_en=$(printf '%s\n%s\n%s' "$dir_top_en" "$dir_mid_en" "$dir_bottom_en")
-  dir_banner_zh=$(printf '%s\n%s\n%s' "$dir_top_zh" "$dir_mid_zh" "$dir_bottom_zh")
-
-  if [ "$should_highlight" -eq 1 ] && [ "$project_dir_display" != "$project_dir_box_display" ]; then
-    dir_banner_en=${dir_banner_en//Project directory: $project_dir_box_display/Project directory: $project_dir_display}
-    dir_banner_zh=${dir_banner_zh//Project directory: $project_dir_box_display/Project directory: $project_dir_display}
+  local dir_mid_en_line="$dir_mid_en"
+  local dir_mid_zh_line="$dir_mid_zh"
+  if [ "$should_highlight" -eq 1 ] && [ -z "${NO_COLOR:-}" ] && [ -t 1 ]; then
+    dir_mid_en_line="$(format_cyan_bold_line "$dir_mid_en")"
+    dir_mid_zh_line="$(format_cyan_bold_line "$dir_mid_zh")"
   fi
+
+  local dir_mid_en_line="$dir_mid_en"
+  local dir_mid_zh_line="$dir_mid_zh"
+  if [ "$should_highlight" -eq 1 ] && [ -z "${NO_COLOR:-}" ] && { [ -t 1 ] || [ -t 2 ]; }; then
+    local path_highlight
+    path_highlight=$(format_cyan_bold_line "$project_dir_box_display")
+    dir_mid_en_line=${dir_mid_en_line//Project directory: $project_dir_box_display/Project directory: $path_highlight}
+    dir_mid_zh_line=${dir_mid_zh_line//Project directory: $project_dir_box_display/Project directory: $path_highlight}
+  fi
+
+  local dir_banner_en dir_banner_zh
+  dir_banner_en=$(printf '%s\n%s\n%s' "$dir_top_en" "$dir_mid_en_line" "$dir_bottom_en")
+  dir_banner_zh=$(printf '%s\n%s\n%s' "$dir_top_zh" "$dir_mid_zh_line" "$dir_bottom_zh")
 
   case "$LANGUAGE" in
   zh)
