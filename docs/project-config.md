@@ -55,16 +55,16 @@
 ## 项目识别与 slug 生成
 
 - 使用 `git rev-parse --git-common-dir --path-format=absolute` 获取共享 git 目录，取其父目录作为项目根。
-- slug 采用“清洗后的路径片段 + 短哈希”，示例：`worktree.sh__1234ab`。规则：去掉 `$HOME` 前缀，将路径分隔符替换为 `_`，追加 6 位十六进制哈希即可（单机维护项目数量有限，碰撞概率可接受）；如需更强唯一性，可扩展到 8~12 位哈希。
+- slug 基于仓库的绝对路径生成带前缀的连字符名称，例如：`-Users-notdp-Developer-worktree-sh`。规则：移除开头的 `/`，将路径分隔符、`.` 以及其他非法字符统一替换为 `-` 并压缩重复的连字符；若结果与既有项目冲突，则追加 `-<hash>` 后缀（使用仓库路径的哈希前缀）以保证唯一性。
 - 项目目录结构：
 
   ```plain
   ~/.worktree.sh/
     config.kv              # 仅保留语言与少量元信息
     projects/
-      worktree.sh__123b/
+      -Users-notdp-Developer-worktree-sh/
         config.kv
-      franxx.ai__7ac0/
+      -Users-notdp-Developer-franxx-ai/
         config.kv
   ```
 
@@ -101,7 +101,7 @@
 ### `wt init` 幂等流程
 
 - 通过 `git rev-parse --git-common-dir --path-format=absolute` 获取共享 git 目录，再取其父目录并使用 `realpath` 规范化，作为项目根；无论在主仓还是任意 worktree 执行 `wt init` 都会定位到同一项目。
-- 基于规范化路径生成 slug（路径清洗 + 6 位哈希），目标目录为 `~/.worktree.sh/projects/<slug>/`。
+- 基于规范化路径生成 slug（绝对路径 → 连字符形式；必要时追加短哈希），目标目录为 `~/.worktree.sh/projects/<slug>/`。
 - 若目标目录不存在：
   - 创建目录并以 `config-example.kv` 为模板生成初始 `config.kv`，写入 `repo.path`、`repo.branch`、`WORKTREE_NAME_PREFIX` 等核心字段。
   - 如果创建或写入失败，清理新建目录并输出报错，确保用户可以重试。

@@ -1,4 +1,4 @@
-# wt CLI Manual Test Report — 2025-09-23
+# wt CLI Manual Test Report — 2025-09-24
 
 ## Overview
 
@@ -9,9 +9,9 @@
 ## Environment
 
 - Host: Darwin rhythm.local 24.6.0 (arm64) • zsh 5.9
-- Repository: worktree.sh @ commit 3599135 (dirty: bin/messages.sh, bin/wt, docs/project-config.md, tests/test.md)
+- Repository: worktree.sh @ commit b89948b (dirty: bin/lib/runtime.sh, bin/messages.sh, docs/project-config.md, tests/issues.md, tests/test.md)
 - wt binary under test: ./bin/wt (reports 0.1.0)
-- Execution window: 2025-09-23 (US) / 2025-09-24 05:59 +08 local time
+- Execution window: 2025-09-24 (US) / 2025-09-24 15:09 +08 local time
 - Prereq reset: ran `./uninstall.sh` then `./install.sh --shell bash` before testing
 
 ## Preparation Notes
@@ -31,7 +31,7 @@
 | `wt shell-hook --help` | ✅ | Printed usage for zsh/bash hook generation.
 | `wt shell-hook zsh` | ✅ | Emitted wrapper function pointing at `/Users/notdp/Developer/worktree.sh/bin/wt`.
 | `wt config` | ✅ | Printed full usage/keys table.
-| `wt config list` | ✅ | No stored values yet; command exited cleanly.
+| `wt config list` | ⚠️ Expected refusal | Exits 1: `wt: This command must be run inside a configured project`.
 | `wt config get repo.path` | ✅ | Returned default placeholder `/Users/notdp/Developer/your-project`.
 | `wt config set language zh` | ⚠️ Expected refusal | Correctly refused because command requires project scope.
 | `wt list` | ⚠️ Expected refusal | Prompted to run `wt init` since scope was unconfigured.
@@ -43,7 +43,7 @@
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `wt init` | ✅ | Created project config `Developer_franxx.ai__592d13`; captured repo.path/main branch.
+| `wt init` | ✅ | Created project config `-Users-notdp-Developer-franxx-ai`; captured repo.path/main branch.
 | `wt config list` | ✅ | Reflected stored defaults (language=en, add.* tuned for npm workflows).
 | `wt config get language` | ✅ | Returned `en`.
 | `wt config set language zh` → `wt config get language` | ✅ | Stored `zh` then confirmed.
@@ -68,7 +68,7 @@
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `wt init` | ✅ | Created project config `Developer_franxx.store__5eae6a` with repo.path/main.
+| `wt init` | ✅ | Created project config `-Users-notdp-Developer-franxx-store` with repo.path/main.
 | `wt config list` | ✅ | Mirrored npm-focused defaults.
 | `wt config set add.install-deps.enabled false` | ✅ | Disabled npm install step (restored later).
 | `wt config set add.serve-dev.enabled false` | ✅ | Disabled dev server launch (restored later).
@@ -87,9 +87,10 @@
 
 ## Observations & Follow-ups
 
-- The only non-success states (`wt config set language` globally, `wt list` outside init, and `wt merge` with dirty main) behaved as guardrails, matching expectations; no defects observed.
-- `wt add` gracefully handled both clean (`franxx.ai`) and dirty (`franxx.store`) base worktrees, emitting helpful messages when copying env files or skipping dev startup.
-- All temporary worktrees/branches (`feat/franxx-ai-report`, `feat/12345`, `feat/qa`, `feat/franxx-store-report`) were removed; `git worktree list` now shows only the original directories.
+- `wt config list` still rejects global use with `wt: This command must be run inside a configured project`; decide whether the CLI should print defaults instead or keep the guardrail.
+- Multi-project shortcuts (`wt review`, `wt path review`, and piped `wt rm tempglobal`) now succeed from a non-interactive shell, matching the design doc.
+- `wt add` in scratch repos without a lockfile requires disabling `add.install-deps.enabled`; once toggled, worktree lifecycle behaved as expected.
+- All temporary worktrees/branches (`feat/franxx-ai-report`, `feat/12345`, `feat/qa`, `feat/franxx-store-report`, numeric 1111/9999) were removed; `git worktree list` returns to the pre-test set.
 - Configuration toggles changed during testing were restored to their pre-test values to avoid persisting side effects.
 
 ## Artifacts

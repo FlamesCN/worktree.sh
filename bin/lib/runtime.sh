@@ -259,14 +259,17 @@ sanitize_project_path_fragment() {
   fi
 
   local fragment="$1"
-  fragment=$(printf '%s' "$fragment" | tr "/\\\\" "__")
-  fragment=$(printf '%s' "$fragment" | tr -c 'A-Za-z0-9._-' '_')
-  fragment=${fragment##_}
-  fragment=${fragment%%_}
+  fragment=${fragment#/}
+  fragment=$(printf '%s' "$fragment" | tr "/\\" "--")
+  fragment=${fragment//./-}
+  fragment=$(printf '%s' "$fragment" | tr -c 'A-Za-z0-9-' '-')
+  fragment=$(printf '%s' "$fragment" | tr -s '-')
+  fragment=${fragment#-}
+  fragment=${fragment%-}
   if [ -z "$fragment" ]; then
     fragment="project"
   fi
-  printf '%s\n' "$fragment"
+  printf '%s\n' "-$fragment"
 }
 
 project_slug_for_path() {
@@ -283,21 +286,30 @@ project_slug_for_path() {
   fi
 
   local trimmed="$abs_path"
-  if [ -n "$HOME" ]; then
-    if [ "$abs_path" = "$HOME" ]; then
-      trimmed=""
-    elif [[ "$abs_path" == "$HOME"/* ]]; then
-      trimmed="${abs_path#"$HOME"/}"
-    fi
-  fi
   trimmed="${trimmed#/}"
   local fragment
-  fragment=$(sanitize_project_path_fragment "$trimmed") || fragment="project"
+  fragment=$(sanitize_project_path_fragment "$trimmed") || fragment="-project"
 
-  local hash
-  hash=$(hash_prefix_six "$abs_path") || hash="000000"
+  local slug="$fragment"
 
-  printf '%s__%s\n' "$fragment" "$hash"
+  local slug_dir=""
+  slug_dir=$(project_config_dir_for_slug "$slug" 2> /dev/null || true)
+  if [ -n "$slug_dir" ] && [ -d "$slug_dir" ]; then
+    local config_file="$slug_dir/$CONFIG_PROJECT_FILENAME"
+    local existing_path=""
+    if [ -f "$config_file" ]; then
+      existing_path=$(config_file_get_value "$config_file" "repo.path" 2> /dev/null || true)
+    fi
+    if [ -n "$existing_path" ] && [ "$existing_path" != "$abs_path" ]; then
+      local hash
+      hash=$(hash_prefix_six "$abs_path") || hash=""
+      if [ -n "$hash" ]; then
+        slug="${slug}-${hash}"
+      fi
+    fi
+  fi
+
+  printf '%s\n' "$slug"
 }
 
 project_config_dir_for_slug() {

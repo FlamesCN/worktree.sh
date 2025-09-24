@@ -6,7 +6,7 @@
 - Followed tests/report.md after reinstalling via ./uninstall.sh and ./install.sh --shell bash; global smoke checks succeed except wt config list now exits 1 with no message when
   no project is configured, and invoking the installed wt reinstall still fails to locate ~/.local/uninstall.sh (running ./bin/wt reinstall succeeds).
 - Project flows for ~/Developer/franxx.ai and ~/Developer/franxx.store match the report: init, config toggles, worktree CRUD, merge guardrails, and numeric clean all pass; no stray
-  worktrees left behind and project configs restored to defaults (language left at en for franxx.ai as before). Re-added Developer_worktree.sh__5f5ae0 so the ~/.worktree.sh/projects
+  worktrees left behind and project configs restored to defaults (language left at en for franxx.ai as before). Re-added -Users-notdp-Developer-worktree-sh so the ~/.worktree.sh/projects
   set matches the pre-test state.
 
   Notable Findings

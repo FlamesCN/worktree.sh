@@ -549,6 +549,12 @@ msg_zh() {
   init_set_branch)
     printf '  repo.branch → \033[1m%s\033[0m\n' "$1"
     ;;
+  init_slug_failed)
+    printf '无法从当前仓库解析项目 slug'
+    ;;
+  init_slug_mismatch)
+    printf '已存在的项目 %s 指向 %s（当前仓库：%s），操作已中止' "$1" "$2" "$3"
+    ;;
   init_done)
     printf ''
     ;;
