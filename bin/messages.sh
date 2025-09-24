@@ -286,7 +286,7 @@ msg_en() {
     ;;
   list_global_project_header)
     if [ -n "${3:-}" ] && [ -n "${4:-}" ]; then
-      printf '📁 Project %s (%s @ %s) — %s' "$1" "$3" "$4" "$2"
+      printf '📁 Project %s (%s@%s) — %s' "$1" "$3" "$4" "$2"
     elif [ -n "${3:-}" ]; then
       printf '📁 Project %s (%s) — %s' "$1" "$3" "$2"
     elif [ -n "${4:-}" ]; then
@@ -780,7 +780,7 @@ msg_zh() {
     ;;
   list_global_project_header)
     if [ -n "${3:-}" ] && [ -n "${4:-}" ]; then
-      printf '📁 项目 %s（%s @ %s）— %s' "$1" "$3" "$4" "$2"
+      printf '📁 项目 %s（%s@%s）— %s' "$1" "$3" "$4" "$2"
     elif [ -n "${3:-}" ]; then
       printf '📁 项目 %s（%s）— %s' "$1" "$3" "$2"
     elif [ -n "${4:-}" ]; then

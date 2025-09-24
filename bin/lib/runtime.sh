@@ -2446,9 +2446,105 @@ maybe_warn_shell_integration() {
   fi
 }
 
+format_bold_line() {
+  local text="$1"
+
+  if [ -z "$text" ]; then
+    printf '%s' "$text"
+    return
+  fi
+
+  if [ -n "${NO_COLOR:-}" ] || [ ! -t 2 ]; then
+    printf '%s' "$text"
+    return
+  fi
+
+  local start="" end=""
+  if command -v tput > /dev/null 2>&1; then
+    local ansi_bold ansi_reset
+    ansi_bold=$(tput bold 2> /dev/null || true)
+    ansi_reset=$(tput sgr0 2> /dev/null || true)
+    if [ -n "$ansi_bold$ansi_reset" ]; then
+      start="$ansi_bold"
+      end="$ansi_reset"
+    fi
+  fi
+
+  if [ -z "$start" ]; then
+    start=$'\033[1m'
+    end=$'\033[0m'
+  fi
+
+  printf '%s%s%s' "$start" "$text" "$end"
+}
+
+format_cyan_bold_line() {
+  local text="$1"
+
+  if [ -z "$text" ]; then
+    printf '%s' "$text"
+    return
+  fi
+
+  if [ -n "${NO_COLOR:-}" ] || [ ! -t 2 ]; then
+    printf '%s' "$text"
+    return
+  fi
+
+  local start="" end=""
+  if command -v tput > /dev/null 2>&1; then
+    local ansi_cyan ansi_bold ansi_reset
+    ansi_cyan=$(tput setaf 6 2> /dev/null || true)
+    ansi_bold=$(tput bold 2> /dev/null || true)
+    ansi_reset=$(tput sgr0 2> /dev/null || true)
+    if [ -n "$ansi_cyan$ansi_bold$ansi_reset" ]; then
+      start="${ansi_bold}${ansi_cyan}"
+      end="$ansi_reset"
+    fi
+  fi
+
+  if [ -z "$start" ]; then
+    start=$'\033[1;36m'
+    end=$'\033[0m'
+  fi
+
+  printf '%s%s%s' "$start" "$text" "$end"
+}
+
 cmd_list() {
   [ $# -eq 0 ] || die "$(msg list_no_args)"
-  git_project worktree list
+
+  local repo_path="$PROJECT_DIR_ABS"
+  if [ -z "$repo_path" ]; then
+    die "$(msg project_not_found "$WORKING_REPO_PATH")"
+  fi
+
+  local display_name
+  display_name=$(basename "$repo_path")
+  if [ -z "$display_name" ] || [ "$display_name" = "." ]; then
+    if [ -n "$PROJECT_SLUG" ]; then
+      display_name="$PROJECT_SLUG"
+    else
+      display_name="$repo_path"
+    fi
+  fi
+
+  local branch
+  branch=$(git_project rev-parse --abbrev-ref HEAD 2> /dev/null || true)
+  if [ "$branch" = "HEAD" ]; then
+    branch=""
+  fi
+
+  local head_short
+  head_short=$(git_project rev-parse --short HEAD 2> /dev/null || true)
+
+  local header_line
+  header_line=$(msg list_global_project_header "$display_name" "$repo_path" "$branch" "$head_short")
+  info "$(format_bold_line "$header_line")"
+
+  if ! project_print_worktrees "$repo_path"; then
+    info "$(msg git_command_failed "$repo_path")"
+  fi
 }
 
 project_emit_worktree_entry() {
@@ -2509,10 +2605,17 @@ project_emit_worktree_entry() {
     head_short="${head:0:7}"
   fi
 
+  local entry_line
   if [ -n "$status" ]; then
-    info "$(msg list_global_worktree_entry "$branch_display" "$head_short" "$path" "$status")"
+    entry_line=$(msg list_global_worktree_entry "$branch_display" "$head_short" "$path" "$status")
   else
-    info "$(msg list_global_worktree_entry "$branch_display" "$head_short" "$path")"
+    entry_line=$(msg list_global_worktree_entry "$branch_display" "$head_short" "$path")
+  fi
+
+  if [ "$branch_display" = "main" ]; then
+    info "$(format_cyan_bold_line "$entry_line")"
+  else
+    info "$entry_line"
   fi
 }
 
@@ -2583,7 +2686,9 @@ cmd_list_global() {
     if [ "$idx" -gt 0 ]; then
       info ''
     fi
-    info "$(msg list_global_project_header "$display_name" "$repo_path" "$branch" "$head_short")"
+    local header_line
+    header_line=$(msg list_global_project_header "$display_name" "$repo_path" "$branch" "$head_short")
+    info "$(format_bold_line "$header_line")"
 
     if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
       info "$(msg project_path_missing "$display_name")"
