@@ -67,10 +67,10 @@
 - 将输出追加到对应 rc 文件（如 `wt shell-hook zsh >> ~/.zshrc`）即可在 `wt add`、`wt main`、`wt rm` 等命令后自动切换目录。
 - Wrapper 会向真实可执行文件传入 `WT_SHELL_WRAPPED=1`，避免重复提示集成指引。
 
-### wt update — 从官方仓库刷新脚本
+### wt reinstall — 重新运行安装脚本
 
-- 依赖 `curl`，下载最新 `bin/wt` 与 `messages.sh` 到 `WT_INSTALL_PREFIX`（默认 `~/.local/bin`）。
-- 若目标文件内容相同会提示“已是最新”，否则在安装后回显成功信息。
+- 在当前仓库顺序执行 `./uninstall.sh` 与 `./install.sh`，目标目录默认 `WT_INSTALL_PREFIX`（`~/.local/bin`）。
+- 支持透传 `--shell`、`--prefix`；多次运行保持幂等，便于快速刷新同版本。
 
 ### wt uninstall [--shell <type>] [--prefix <dir>] — 卸载 wt
 

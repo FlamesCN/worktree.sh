@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  cat <<'USAGE'
+  cat << 'USAGE'
 Usage: uninstall.sh [options]
 
 Options:
@@ -40,9 +40,9 @@ die() {
 detect_shell() {
   local shell_name="${SHELL##*/}"
   case "$shell_name" in
-    bash) echo "bash" ;;
-    zsh) echo "zsh" ;;
-    *) echo "none" ;;
+  bash) echo "bash" ;;
+  zsh) echo "zsh" ;;
+  *) echo "none" ;;
   esac
 }
 
@@ -64,16 +64,16 @@ remove_shell_hook() {
   local marker_end="# wt shell integration: end"
 
   case "$shell_type" in
-    zsh)
-      hook_file="$HOME/.zshrc"
-      ;;
-    bash)
-      hook_file="$HOME/.bashrc"
-      ;;
-    *)
-      SHELL_REMOVAL_MESSAGE=$(printf 'Unknown shell type %s; skipped shell cleanup.' "$shell_type")
-      return 0
-      ;;
+  zsh)
+    hook_file="$HOME/.zshrc"
+    ;;
+  bash)
+    hook_file="$HOME/.bashrc"
+    ;;
+  *)
+    SHELL_REMOVAL_MESSAGE=$(printf 'Unknown shell type %s; skipped shell cleanup.' "$shell_type")
+    return 0
+    ;;
   esac
 
   if [ ! -f "$hook_file" ]; then
@@ -152,7 +152,6 @@ remove_config_dir() {
   fi
 }
 
-
 main() {
   local prefix="${WT_INSTALL_PREFIX:-$HOME/.local/bin}"
   local shell_type=""
@@ -160,28 +159,28 @@ main() {
   # Parse arguments
   while [ $# -gt 0 ]; do
     case "$1" in
-      --shell)
-        shift || die "--shell requires a value"
-        shell_type="$1"
-        ;;
-      --prefix)
-        shift || die "--prefix requires a value"
-        prefix="$1"
-        ;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      --)
-        shift
-        break
-        ;;
-      -*)
-        die "unknown option: $1"
-        ;;
-      *)
-        break
-        ;;
+    --shell)
+      shift || die "--shell requires a value"
+      shell_type="$1"
+      ;;
+    --prefix)
+      shift || die "--prefix requires a value"
+      prefix="$1"
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      break
+      ;;
     esac
     shift || true
   done
@@ -194,8 +193,8 @@ main() {
 
   # Validate shell type
   case "$shell_type" in
-    zsh|bash|none) ;;
-    *) die "Invalid shell type: $shell_type (use zsh, bash, or none)" ;;
+  zsh | bash | none) ;;
+  *) die "Invalid shell type: $shell_type (use zsh, bash, or none)" ;;
   esac
 
   REMOVAL_SUMMARY=()
@@ -215,6 +214,34 @@ main() {
     REMOVAL_SUMMARY+=("Removed wt messages from $wt_messages.")
   else
     REMOVAL_SUMMARY+=("wt messages not found at $wt_messages (already removed).")
+  fi
+
+  local lib_dir="$prefix/lib"
+  if [ -d "$lib_dir" ]; then
+    local module_removed=0
+    local module_name
+    for module_name in runtime.sh commands.sh; do
+      if [ -f "$lib_dir/$module_name" ]; then
+        rm -f "$lib_dir/$module_name"
+        module_removed=1
+      fi
+    done
+
+    if [ "$module_removed" -eq 1 ]; then
+      if [ -z "$(ls -A "$lib_dir")" ]; then
+        rmdir "$lib_dir" 2> /dev/null || true
+        REMOVAL_SUMMARY+=("Removed wt modules and cleaned $lib_dir.")
+      else
+        REMOVAL_SUMMARY+=("Removed wt modules from $lib_dir (directory retained).")
+      fi
+    else
+      REMOVAL_SUMMARY+=("wt modules not found in $lib_dir (already removed).")
+      if [ -z "$(ls -A "$lib_dir")" ]; then
+        rmdir "$lib_dir" 2> /dev/null || true
+      fi
+    fi
+  else
+    REMOVAL_SUMMARY+=("wt modules directory $lib_dir not found (already removed).")
   fi
 
   # Remove shell hook if requested
@@ -243,8 +270,6 @@ main() {
     printf '  %d. %s\n' "$index" "${REMOVAL_SUMMARY[$i]}"
   done
 
-  printf '\nNotes:\n'
-  printf '  - Existing worktrees were preserved.\n'
 }
 
 main "$@"

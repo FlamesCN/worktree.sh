@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  cat <<'USAGE'
+  cat << 'USAGE'
 Usage: install.sh [options]
 
 Options:
@@ -31,8 +31,8 @@ USAGE
 
 path_has() {
   case ":$PATH:" in
-    *":$1:"*) return 0 ;;
-    *) return 1 ;;
+  *":$1:"*) return 0 ;;
+  *) return 1 ;;
   esac
 }
 
@@ -44,9 +44,9 @@ die() {
 detect_shell() {
   local shell_name="${SHELL##*/}"
   case "$shell_name" in
-    bash) echo "bash" ;;
-    zsh) echo "zsh" ;;
-    *) echo "none" ;;
+  bash) echo "bash" ;;
+  zsh) echo "zsh" ;;
+  *) echo "none" ;;
   esac
 }
 
@@ -71,16 +71,16 @@ install_shell_hook() {
   local hook_marker="# wt shell integration: auto-cd after wt add/path/main/remove/clean"
 
   case "$shell_type" in
-    zsh)
-      hook_file="$HOME/.zshrc"
-      ;;
-    bash)
-      hook_file="$HOME/.bashrc"
-      ;;
-    *)
-      printf 'Warning: Unknown shell type %s, skipping shell integration\n' "$shell_type" >&2
-      return 0
-      ;;
+  zsh)
+    hook_file="$HOME/.zshrc"
+    ;;
+  bash)
+    hook_file="$HOME/.bashrc"
+    ;;
+  *)
+    printf 'Warning: Unknown shell type %s, skipping shell integration\n' "$shell_type" >&2
+    return 0
+    ;;
   esac
 
   # Create rc file if it doesn't exist
@@ -107,28 +107,28 @@ main() {
   # Parse arguments
   while [ $# -gt 0 ]; do
     case "$1" in
-      --shell)
-        shift || die "--shell requires a value"
-        shell_type="$1"
-        ;;
-      --prefix)
-        shift || die "--prefix requires a value"
-        prefix="$1"
-        ;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      --)
-        shift
-        break
-        ;;
-      -*)
-        die "unknown option: $1"
-        ;;
-      *)
-        break
-        ;;
+    --shell)
+      shift || die "--shell requires a value"
+      shell_type="$1"
+      ;;
+    --prefix)
+      shift || die "--prefix requires a value"
+      prefix="$1"
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      break
+      ;;
     esac
     shift || true
   done
@@ -141,18 +141,20 @@ main() {
 
   # Validate shell type
   case "$shell_type" in
-    zsh|bash|none) ;;
-    *) die "Invalid shell type: $shell_type (use zsh, bash, or none)" ;;
+  zsh | bash | none) ;;
+  *) die "Invalid shell type: $shell_type (use zsh, bash, or none)" ;;
   esac
 
   # Find the wt script
   local script_path
   script_path=$(dirname "${BASH_SOURCE[0]:-${0}}")
   local script_dir
-  script_dir=$(cd "$script_path" 2>/dev/null && pwd || true)
+  script_dir=$(cd "$script_path" 2> /dev/null && pwd || true)
 
   local source_file=""
   local messages_source=""
+  local lib_source_dir=""
+  local -a lib_modules=("runtime.sh" "commands.sh")
   local tmpdir=""
 
   if [ -n "$script_dir" ] && [ -f "$script_dir/bin/wt" ]; then
@@ -160,8 +162,13 @@ main() {
     if [ -f "$script_dir/bin/messages.sh" ]; then
       messages_source="$script_dir/bin/messages.sh"
     fi
+    if [ -d "$script_dir/bin/lib" ]; then
+      lib_source_dir="$script_dir/bin/lib"
+    else
+      die "missing wt modules in $script_dir/bin/lib"
+    fi
   else
-    command -v curl >/dev/null 2>&1 || die "curl is required"
+    command -v curl > /dev/null 2>&1 || die "curl is required"
     tmpdir=$(mktemp -d)
     trap 'rm -rf "${tmpdir:-}"' EXIT
 
@@ -177,6 +184,16 @@ main() {
     else
       printf 'Warning: failed to download messages file from %s\n' "$messages_url" >&2
     fi
+
+    local modules_url_base="https://raw.githubusercontent.com/notdp/worktree.sh/main/bin/lib"
+    lib_source_dir="$tmpdir/lib"
+    mkdir -p "$lib_source_dir"
+    local module_name module_url
+    for module_name in "${lib_modules[@]}"; do
+      module_url="$modules_url_base/$module_name"
+      printf 'Downloading wt module from %s...\n' "$module_url"
+      curl -fsSL "$module_url" -o "$lib_source_dir/$module_name" || die "failed to download wt module from $module_url"
+    done
   fi
 
   # Install wt binary
@@ -187,6 +204,19 @@ main() {
   if [ -n "$messages_source" ] && [ -f "$messages_source" ]; then
     install -m 0644 "$messages_source" "$prefix/messages.sh"
     messages_installed=1
+  fi
+
+  local modules_installed=0
+  if [ -n "$lib_source_dir" ]; then
+    install -d "$prefix/lib"
+    local module_name
+    for module_name in "${lib_modules[@]}"; do
+      if [ ! -f "$lib_source_dir/$module_name" ]; then
+        die "missing wt module source: $lib_source_dir/$module_name"
+      fi
+      install -m 0644 "$lib_source_dir/$module_name" "$prefix/lib/$module_name"
+    done
+    modules_installed=1
   fi
 
   # Check PATH
@@ -213,13 +243,18 @@ main() {
     summary_index=$((summary_index + 1))
   fi
 
+  if [ "$modules_installed" -eq 1 ]; then
+    printf '  %d. Installed support modules to %s/lib\n' "$summary_index" "$prefix"
+    summary_index=$((summary_index + 1))
+  fi
+
   if [ "$shell_type" != "none" ]; then
     local hook_line="${SHELL_HOOK_STATUS:-}"
     if [ -z "$hook_line" ]; then
       local shell_label="$shell_type"
       case "$shell_type" in
-        zsh) shell_label="Zsh" ;;
-        bash) shell_label="Bash" ;;
+      zsh) shell_label="Zsh" ;;
+      bash) shell_label="Bash" ;;
       esac
       hook_line="Configured shell integration for ${shell_label}."
     fi
@@ -239,20 +274,24 @@ main() {
     local source_hint="$SHELL_SOURCE_HINT"
     if [ -z "$source_hint" ]; then
       case "$shell_type" in
-        zsh) source_hint="source $HOME/.zshrc" ;;
-        bash) source_hint="source $HOME/.bashrc" ;;
+      zsh) source_hint="source $HOME/.zshrc" ;;
+      bash) source_hint="source $HOME/.bashrc" ;;
       esac
     fi
+    # shellcheck disable=SC2016
     printf '  %d. Run `%s%s%s` (or start a new shell) to enable wt auto-cd now.\n' "$next_index" "$STYLE_BLUE_BOLD" "$source_hint" "$COLOR_RESET"
     next_index=$((next_index + 1))
   else
+    # shellcheck disable=SC2016
     printf '  %d. Add the shell hook later with `wt shell-hook zsh >> ~/.zshrc` or `wt shell-hook bash >> ~/.bashrc`.\n' "$next_index"
     next_index=$((next_index + 1))
   fi
 
+  # shellcheck disable=SC2016
   printf '  %d. Run `%swt init%s` in each project so wt tracks your default branch and path (set up wt command tracking).\n' "$next_index" "$STYLE_BLUE_BOLD" "$COLOR_RESET"
   next_index=$((next_index + 1))
 
+  # shellcheck disable=SC2016
   printf '  %d. To switch CLI language anytime, run `wt config set language zh` (or `en`).\n' "$next_index"
 }
 
