@@ -154,6 +154,42 @@ msg_en() {
   merge_cleanup_hint)
     printf '🧹 Consider cleaning up the worktree with: wt rm %s' "$1"
     ;;
+  sync_requires_target)
+    printf 'sync requires "all" or one or more worktree names'
+    ;;
+  sync_invalid_all)
+    printf 'sync "all" cannot be combined with additional names'
+    ;;
+  sync_base_dirty)
+    printf 'main workspace has unstaged or untracked changes; commit or stash before syncing'
+    ;;
+  sync_skip_base)
+    printf '⚙️  Skipping base workspace (%s)' "$1"
+    ;;
+  sync_no_targets)
+    printf 'no worktrees found to sync'
+    ;;
+  sync_no_staged)
+    printf 'no staged changes to sync; run git add first'
+    ;;
+  sync_patch_failed)
+    printf 'failed to prepare staged diff for syncing'
+    ;;
+  sync_target_dirty)
+    printf 'worktree %s is dirty (%s); commit or stash before syncing' "$1" "$2"
+    ;;
+  sync_apply_failed)
+    printf '⚠️  Failed to sync staged changes to %s; apply manually' "$1"
+    ;;
+  sync_apply_start)
+    printf '📤 Syncing staged changes to %s' "$1"
+    ;;
+  sync_apply_done)
+    printf '✅ Synced %s' "$1"
+    ;;
+  sync_done)
+    printf '✅ Sync complete (%s worktree(s) updated)' "$1"
+    ;;
   cleaning_worktree)
     printf '🧹 Cleaning worktree: %s' "$1"
     ;;
@@ -647,6 +683,42 @@ msg_zh() {
     ;;
   merge_cleanup_hint)
     printf '🧹 如需清理请运行：wt rm %s' "$1"
+    ;;
+  sync_requires_target)
+    printf 'sync 需要传入 "all" 或至少一个 worktree 名称'
+    ;;
+  sync_invalid_all)
+    printf 'sync 的 "all" 不能与其他名称同时使用'
+    ;;
+  sync_base_dirty)
+    printf '主工作区存在未暂存或未追踪的改动，请先提交或暂存后再同步'
+    ;;
+  sync_skip_base)
+    printf '⚙️  跳过主工作区（%s）' "$1"
+    ;;
+  sync_no_targets)
+    printf '没有可同步的 worktree'
+    ;;
+  sync_no_staged)
+    printf '没有可同步的暂存改动，请先执行 git add'
+    ;;
+  sync_patch_failed)
+    printf '准备暂存差异失败，无法完成同步'
+    ;;
+  sync_target_dirty)
+    printf 'worktree %s 不干净（%s），请先提交或暂存后再同步' "$1" "$2"
+    ;;
+  sync_apply_failed)
+    printf '⚠️  向 %s 同步暂存改动失败，请手动处理' "$1"
+    ;;
+  sync_apply_start)
+    printf '📤 正在向 %s 同步暂存改动' "$1"
+    ;;
+  sync_apply_done)
+    printf '✅ 已同步 %s' "$1"
+    ;;
+  sync_done)
+    printf '✅ 同步完成（更新了 %s 个 worktree）' "$1"
     ;;
   cleaning_worktree)
     printf '🧹 清理 worktree: %s' "$1"

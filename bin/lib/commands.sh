@@ -824,6 +824,174 @@ cmd_merge() {
   fi
 }
 
+cmd_sync() {
+  if [ $# -eq 0 ]; then
+    die "$(msg sync_requires_target)"
+  fi
+
+  local base_branch="$WORKING_REPO_BRANCH"
+  local current_branch=""
+  current_branch=$(git_project symbolic-ref --quiet --short HEAD 2> /dev/null || true)
+
+  if [ -z "$base_branch" ]; then
+    base_branch=$(detect_repo_default_branch "$current_branch")
+  fi
+
+  if [ -z "$base_branch" ]; then
+    die "$(msg merge_main_only main "${current_branch:-'(detached)'}")"
+  fi
+
+  if [ -z "$current_branch" ]; then
+    die "$(msg merge_main_only "$base_branch" "(detached)")"
+  fi
+
+  if [ "$current_branch" != "$base_branch" ]; then
+    die "$(msg merge_main_only "$base_branch" "$current_branch")"
+  fi
+
+  if ! git_project diff --quiet; then
+    die "$(msg sync_base_dirty)"
+  fi
+
+  if [ -n "$(git_project ls-files --others --exclude-standard)" ]; then
+    die "$(msg sync_base_dirty)"
+  fi
+
+  local mode_all=0
+  local -a target_names=()
+  local -a target_paths=()
+
+  if [ "$1" = "all" ]; then
+    if [ $# -gt 1 ]; then
+      die "$(msg sync_invalid_all)"
+    fi
+    mode_all=1
+  else
+    local name
+    for name in "$@"; do
+      if [ "$name" = "$base_branch" ]; then
+        info "$(msg sync_skip_base "$base_branch")"
+        continue
+      fi
+
+      local path
+      path=$(worktree_path_for "$name")
+      if [ ! -d "$path" ]; then
+        die "$(msg worktree_not_found "$name")"
+      fi
+
+      if [ "$path" = "$PROJECT_DIR_ABS" ]; then
+        info "$(msg sync_skip_base "$base_branch")"
+        continue
+      fi
+
+      target_names+=("$name")
+      target_paths+=("$path")
+    done
+  fi
+
+  if [ "$mode_all" -eq 1 ]; then
+    local current_path=""
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ -z "$line" ]; then
+        if [ -n "$current_path" ] && [ "$current_path" != "$PROJECT_DIR_ABS" ]; then
+          local base
+          base=$(basename "$current_path")
+          if [[ "$base" == "$WORKTREE_NAME_PREFIX"* ]]; then
+            local suffix="${base#"$WORKTREE_NAME_PREFIX"}"
+            if [ -n "$suffix" ]; then
+              target_names+=("$suffix")
+              target_paths+=("$current_path")
+            fi
+          fi
+        fi
+        current_path=""
+        continue
+      fi
+      case "$line" in
+      worktree\ *)
+        current_path="${line#worktree }"
+        ;;
+      esac
+    done < <(git_project worktree list --porcelain)
+
+    if [ -n "$current_path" ] && [ "$current_path" != "$PROJECT_DIR_ABS" ]; then
+      local base
+      base=$(basename "$current_path")
+      if [[ "$base" == "$WORKTREE_NAME_PREFIX"* ]]; then
+        local suffix="${base#"$WORKTREE_NAME_PREFIX"}"
+        if [ -n "$suffix" ]; then
+          target_names+=("$suffix")
+          target_paths+=("$current_path")
+        fi
+      fi
+    fi
+  fi
+
+  local target_count=${#target_paths[@]}
+  if [ "$target_count" -eq 0 ]; then
+    info "$(msg sync_no_targets)"
+    return
+  fi
+
+  if git_project diff --cached --quiet; then
+    info "$(msg sync_no_staged)"
+    return
+  fi
+
+  local patch_file
+  patch_file=$(mktemp "${TMPDIR:-/tmp}/wt-sync-XXXXXX.patch") || die "$(msg temp_file_failed)"
+  trap 'rm -f "$patch_file"' RETURN EXIT
+
+  if ! git_project diff --cached --binary > "$patch_file"; then
+    rm -f "$patch_file"
+    trap - RETURN EXIT
+    die "$(msg sync_patch_failed)"
+  fi
+
+  local idx=0
+  while [ "$idx" -lt "$target_count" ]; do
+    local path="${target_paths[$idx]}"
+    local name="${target_names[$idx]}"
+    local status
+    status=$(git -C "$path" status --porcelain 2> /dev/null || true)
+    if [ -n "$status" ]; then
+      rm -f "$patch_file"
+      trap - RETURN EXIT
+      die "$(msg sync_target_dirty "$name" "$path")"
+    fi
+
+    if ! git -C "$path" apply --check --index --3way --binary "$patch_file"; then
+      rm -f "$patch_file"
+      trap - RETURN EXIT
+      die "$(msg sync_apply_failed "$name")"
+    fi
+    idx=$((idx + 1))
+  done
+
+  idx=0
+  local success=0
+  while [ "$idx" -lt "$target_count" ]; do
+    local path="${target_paths[$idx]}"
+    local name="${target_names[$idx]}"
+    info "$(msg sync_apply_start "$name")"
+    if git -C "$path" apply --index --3way --binary "$patch_file"; then
+      success=$((success + 1))
+      info "$(msg sync_apply_done "$name")"
+    else
+      rm -f "$patch_file"
+      trap - RETURN EXIT
+      die "$(msg sync_apply_failed "$name")"
+    fi
+    idx=$((idx + 1))
+  done
+
+  rm -f "$patch_file"
+  trap - RETURN EXIT
+
+  info "$(msg sync_done "$success")"
+}
+
 cmd_remove() {
   local assume_yes=0
   local -a names=()
@@ -1316,6 +1484,13 @@ wt_main() {
     fi
     resolve_project
     cmd_merge "$@"
+    ;;
+  sync)
+    if [ "$scope" != "project" ]; then
+      die "$(msg command_requires_project)"
+    fi
+    resolve_project
+    cmd_sync "$@"
     ;;
   rm | remove)
     case "$scope" in

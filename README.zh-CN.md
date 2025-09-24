@@ -79,6 +79,7 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 | `wt list`        | 展示当前追踪的 worktree（`git worktree list` 包装）。                        |
 | `wt add <name>`  | 创建 worktree、分支、复制环境文件、安装依赖并启动 dev server（行为可配置）。 |
 | `wt merge <name>` | 将对应的特性分支（`feat/<name>`）合并回基线分支，要求两侧工作区已提交且干净。 |
+| `wt sync all` / `wt sync <name ...>` | 将主工作区的暂存改动下发到一个或多个干净的 worktree，并保持为暂存状态。 |
 | `wt <name>`      | 直接进入指定 worktree 目录。                                                 |
 | `wt rm [name ...]`   | 删除当前或多个指定的 worktree（默认确认，可加 `--yes` 跳过当前目录）。           |
 | `wt clean`       | 批量清理数字命名的 worktree，并删除对应的 `feat/*` 分支。                    |
@@ -88,6 +89,12 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 | `wt reinstall`   | 依次执行仓库内的 `uninstall.sh` 与 `install.sh`，重新部署 wt。                |
 | `wt uninstall`   | 移除二进制并清理 shell hook。                                                |
 | `wt help`        | 查看内置命令参考。                                                           |
+
+### 同步暂存改动
+
+1. 在主工作区使用 `git add ...` 暂存需要分发的文件。
+2. 运行 `wt sync all` 下发到全部 worktree，或用 `wt sync feat1 feat2` 定位具体分支。
+3. 目标 worktree 必须保持干净；同步完成后改动会以暂存状态出现，方便直接提交。
 
 ## 安装选项
 

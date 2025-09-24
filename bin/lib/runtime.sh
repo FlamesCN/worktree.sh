@@ -1861,6 +1861,7 @@ usage() {
   add <name>         创建新 worktree，复制环境文件、安装依赖并启动 dev server（可通过 wt config 调整）
   main               跳转到主 worktree
   merge <name>       将指定 worktree 的分支（feat/<name>）合并到主分支
+  sync [all|name ...] 将主工作区的暂存改动同步到其他 worktree
   list               列出所有 worktree
   rm [name ...]      删除一个或多个 worktree（省略 name 时使用当前目录）
   clean              清理数字 worktree（匹配前缀 + 数字）
@@ -1885,6 +1886,7 @@ Core commands:
   add <name>         Create a new worktree, copy env files, install deps, start dev server (tunable via wt config)
   main               Jump to the main worktree
   merge <name>       Merge the feature branch (feat/<name>) back into the base branch
+  sync [all|name ...] Sync staged changes from the main workspace into other worktrees
   list               List all worktrees
   rm [name ...]      Remove one or more worktrees (current directory if name omitted)
   clean              Remove numeric worktrees (matching prefix + digits)

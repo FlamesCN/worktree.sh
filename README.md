@@ -79,6 +79,7 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 | `wt list`       | Show tracked worktrees (wrapper over `git worktree list`).                                                |
 | `wt add <name>` | Create worktree, branch, copy env files, install deps, launch dev server (behavior controlled by config). |
 | `wt merge <name>` | Merge the feature branch (`feat/<name>`) into the base branch once both worktrees are clean and committed. |
+| `wt sync all` / `wt sync <name ...>` | Copy the main workspace's staged changes into one or more clean worktrees, leaving them staged for commit. |
 | `wt <name>`     | Jump straight into an existing worktree directory.                                                        |
 | `wt rm [name ...]`  | Delete current worktree or any named ones (prompts for current unless `--yes`).                           |
 | `wt clean`      | Batch-remove numerically named worktrees and matching `feat/*` branches.                                  |
@@ -88,6 +89,12 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 | `wt reinstall`  | Run the bundled `uninstall.sh` followed by `install.sh` to refresh wt in place.                          |
 | `wt uninstall`  | Remove the binary and shell hooks.                                                                        |
 | `wt help`       | Show built-in reference for all commands.                                                                 |
+
+### Syncing staged changes
+
+1. Stage the files you want to distribute from the main workspace (`git add ...`).
+2. Run `wt sync all` to update every managed worktree, or target a subset with `wt sync feat1 feat2`.
+3. Each target worktree must be clean; the staged changes will appear as staged edits ready to commit on that branch.
 
 ## Installation Options
 
