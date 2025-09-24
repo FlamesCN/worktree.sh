@@ -73,6 +73,9 @@ msg_en() {
   fallback_default_port)
     printf '⚠️  Using default port 3000 for the dev command.'
     ;;
+  dev_skipped_reserved_port)
+    printf '⚙️  Dev command skipped because %s is a reserved port (<1024)' "$1"
+    ;;
   creating_worktree)
     printf '🔧 Creating worktree: %s (branch %s)' "$1" "$2"
     ;;
@@ -566,6 +569,9 @@ msg_zh() {
     ;;
   fallback_default_port)
     printf '⚠️  将使用默认端口 3000 启动开发命令'
+    ;;
+  dev_skipped_reserved_port)
+    printf '⚙️  检测到 %s 为保留端口 (<1024)，已跳过开发命令' "$1"
     ;;
   creating_worktree)
     printf '🔧 创建 worktree: %s (分支 %s)' "$1" "$2"

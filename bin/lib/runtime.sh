@@ -2691,16 +2691,24 @@ cmd_add() {
   local copy_env="$COPY_ENV_ENABLED"
   local branch=""
   local numeric_name=""
+  local port_candidate=""
   local effective_port=""
+  local skip_dev=0
+  local skip_dev_port=""
   local base_branch="$WORKING_REPO_BRANCH"
 
   if [[ "$name" =~ ^[0-9]+$ ]]; then
     numeric_name="$name"
+    port_candidate="$name"
     if [ "$numeric_name" -ge 1 ] && [ "$numeric_name" -lt 1024 ]; then
       info "$(msg reserved_port "$numeric_name")"
     elif [ "$numeric_name" -gt 65535 ]; then
       info "$(msg port_out_of_range "$numeric_name")"
     fi
+  fi
+
+  if [ -z "$port_candidate" ] && [[ "$name" =~ ([0-9]+)$ ]]; then
+    port_candidate="${BASH_REMATCH[1]}"
   fi
 
   while [ $# -gt 0 ]; do
@@ -2730,10 +2738,11 @@ cmd_add() {
   if [ "$run_dev" -eq 1 ]; then
     effective_port=$(port_from_name "$name")
 
-    if [ -z "$effective_port" ] && [ -n "$numeric_name" ]; then
-      if [ "$numeric_name" -lt 1024 ]; then
-        info "$(msg fallback_default_port)"
-      elif [ "$numeric_name" -gt 65535 ]; then
+    if [ -z "$effective_port" ]; then
+      if [ -n "$port_candidate" ] && [ "$port_candidate" -lt 1024 ]; then
+        skip_dev=1
+        skip_dev_port="$port_candidate"
+      elif [ -n "$port_candidate" ] && [ "$port_candidate" -gt 65535 ]; then
         info "$(msg fallback_default_port)"
       fi
     fi
@@ -2800,7 +2809,11 @@ cmd_add() {
   fi
 
   if [ "$run_dev" -eq 1 ]; then
-    start_dev_server "$worktree_path" "$serve_command" "$effective_port"
+    if [ "$skip_dev" -eq 1 ]; then
+      info "$(msg dev_skipped_reserved_port "$skip_dev_port")"
+    else
+      start_dev_server "$worktree_path" "$serve_command" "$effective_port"
+    fi
   else
     info "$(msg dev_skipped_config)"
   fi
