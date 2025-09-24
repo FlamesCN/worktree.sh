@@ -824,6 +824,23 @@ cmd_merge() {
   fi
 }
 
+sync_exclude_pathspec() {
+  local dir="$SERVE_DEV_LOGGING_PATH"
+
+  if [ -z "$dir" ]; then
+    return 0
+  fi
+
+  dir="${dir%/}"
+  dir="${dir#/}"
+
+  if [ -z "$dir" ]; then
+    return 0
+  fi
+
+  printf ':(exclude)%s/**\n' "$dir"
+}
+
 cmd_sync() {
   if [ $# -eq 0 ]; then
     die "$(msg sync_requires_target)"
@@ -853,7 +870,17 @@ cmd_sync() {
     die "$(msg sync_base_dirty)"
   fi
 
-  if [ -n "$(git_project ls-files --others --exclude-standard)" ]; then
+  local sync_exclude
+  sync_exclude=$(sync_exclude_pathspec)
+
+  local base_untracked=""
+  if [ -n "$sync_exclude" ]; then
+    base_untracked=$(git_project ls-files --others --exclude-standard -- "$sync_exclude")
+  else
+    base_untracked=$(git_project ls-files --others --exclude-standard)
+  fi
+
+  if [ -n "$base_untracked" ]; then
     die "$(msg sync_base_dirty)"
   fi
 
@@ -954,7 +981,11 @@ cmd_sync() {
     local path="${target_paths[$idx]}"
     local name="${target_names[$idx]}"
     local status
-    status=$(git -C "$path" status --porcelain 2> /dev/null || true)
+    if [ -n "$sync_exclude" ]; then
+      status=$(git -C "$path" status --porcelain -- "$sync_exclude" 2> /dev/null || true)
+    else
+      status=$(git -C "$path" status --porcelain 2> /dev/null || true)
+    fi
     if [ -n "$status" ]; then
       rm -f "$patch_file"
       trap - RETURN EXIT
