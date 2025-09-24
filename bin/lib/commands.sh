@@ -669,7 +669,13 @@ INIT_USAGE_EN
   info "$(msg init_set_project "$repo_root_abs")"
 
   if [ -z "$branch" ]; then
-    branch=$(git symbolic-ref --quiet --short HEAD 2> /dev/null || true)
+    local repo_current_branch=""
+    repo_current_branch=$(git -C "$repo_root_abs" symbolic-ref --quiet --short HEAD 2> /dev/null || true)
+    if [ -n "$repo_current_branch" ]; then
+      branch="$repo_current_branch"
+    else
+      branch=$(git symbolic-ref --quiet --short HEAD 2> /dev/null || true)
+    fi
   fi
 
   if [ -n "$branch" ]; then
