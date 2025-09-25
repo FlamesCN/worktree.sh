@@ -23,7 +23,6 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 ## 快速预览
 
 ![多 worktree 切换演示](asset/worktree.sh.screenshot-1.png)
-![vsc worktree分支查看](asset/worktree.sh.screenshot-2.png)
 
 ## 快速上手
 
@@ -74,21 +73,21 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 
 ## 常用命令速查
 
-| 命令             | 说明                                                                         |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `wt list`        | 展示当前追踪的 worktree（`git worktree list` 包装）。                        |
-| `wt add <name>`  | 创建 worktree、分支、复制环境文件、安装依赖并启动 dev server（行为可配置）。 |
-| `wt merge <name>` | 将对应的特性分支（`feat/<name>`）合并回基线分支，要求两侧工作区已提交且干净。 |
-| `wt sync all` / `wt sync <name ...>` | 将主工作区的暂存改动下发到一个或多个干净的 worktree，并保持为暂存状态。 |
-| `wt <name>`      | 直接进入指定 worktree 目录。                                                 |
-| `wt rm [name ...]`   | 删除当前或多个指定的 worktree（默认确认，可加 `--yes` 跳过当前目录）。           |
-| `wt clean`       | 批量清理数字命名的 worktree，并删除对应的 `feat/*` 分支。                    |
-| `wt detach [slug]` | 清理指定项目由 wt 创建的 worktree 并删除注册信息（加 `-y` 跳过全部确认）。 |
-| `wt main`        | 输出主仓库路径。                                                             |
-| `wt config`      | 检查或调整 CLI 行为。                                                        |
-| `wt reinstall`   | 依次执行仓库内的 `uninstall.sh` 与 `install.sh`，重新部署 wt。                |
-| `wt uninstall`   | 移除二进制并清理 shell hook。                                                |
-| `wt help`        | 查看内置命令参考。                                                           |
+| 命令                                 | 说明                                                                          |
+| ------------------------------------ | ----------------------------------------------------------------------------- |
+| `wt list`                            | 展示当前追踪的 worktree（`git worktree list` 包装）。                         |
+| `wt add <name>`                      | 创建 worktree、分支、复制环境文件、安装依赖并启动 dev server（行为可配置）。  |
+| `wt merge <name>`                    | 将对应的特性分支（`feat/<name>`）合并回基线分支，要求两侧工作区已提交且干净。 |
+| `wt sync all` / `wt sync <name ...>` | 将主工作区的暂存改动下发到一个或多个干净的 worktree，并保持为暂存状态。       |
+| `wt <name>`                          | 直接进入指定 worktree 目录。                                                  |
+| `wt rm [name ...]`                   | 删除当前或多个指定的 worktree（默认确认，可加 `--yes` 跳过当前目录）。        |
+| `wt clean`                           | 批量清理数字命名的 worktree，并删除对应的 `feat/*` 分支。                     |
+| `wt detach [slug]`                   | 清理指定项目由 wt 创建的 worktree 并删除注册信息（加 `-y` 跳过全部确认）。    |
+| `wt main`                            | 输出主仓库路径。                                                              |
+| `wt config`                          | 检查或调整 CLI 行为。                                                         |
+| `wt reinstall`                       | 依次执行仓库内的 `uninstall.sh` 与 `install.sh`，重新部署 wt。                |
+| `wt uninstall`                       | 移除二进制并清理 shell hook。                                                 |
+| `wt help`                            | 查看内置命令参考。                                                            |
 
 ### 同步暂存改动
 

@@ -23,7 +23,6 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 ## Quick Look
 
 ![CLI overview](asset/worktree.sh.screenshot-1.png)
-![Worktree switching](asset/worktree.sh.screenshot-2.png)
 
 ## Quick Start
 
@@ -48,8 +47,10 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
    - Creates the worktree in `../project.3000`
    - Creates and checks out `feat/3000`
    - Copies `.env.local` / `.env`
-  - Runs `npm ci` (skips automatically if no Node.js lockfile is present)
-   - Starts `npm run dev` on port `3000`
+
+- Runs `npm ci` (skips automatically if no Node.js lockfile is present)
+- Starts `npm run dev` on port `3000`
+
 4. Jump between worktrees anytime:
 
    ```bash
@@ -74,21 +75,21 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 
 ## Everyday Commands
 
-| Command         | What it does                                                                                              |
-| --------------- | --------------------------------------------------------------------------------------------------------- |
-| `wt list`       | Show tracked worktrees (wrapper over `git worktree list`).                                                |
-| `wt add <name>` | Create worktree, branch, copy env files, install deps, launch dev server (behavior controlled by config). |
-| `wt merge <name>` | Merge the feature branch (`feat/<name>`) into the base branch once both worktrees are clean and committed. |
+| Command                              | What it does                                                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `wt list`                            | Show tracked worktrees (wrapper over `git worktree list`).                                                 |
+| `wt add <name>`                      | Create worktree, branch, copy env files, install deps, launch dev server (behavior controlled by config).  |
+| `wt merge <name>`                    | Merge the feature branch (`feat/<name>`) into the base branch once both worktrees are clean and committed. |
 | `wt sync all` / `wt sync <name ...>` | Copy the main workspace's staged changes into one or more clean worktrees, leaving them staged for commit. |
-| `wt <name>`     | Jump straight into an existing worktree directory.                                                        |
-| `wt rm [name ...]`  | Delete current worktree or any named ones (prompts for current unless `--yes`).                           |
-| `wt clean`      | Batch-remove numerically named worktrees and matching `feat/*` branches.                                  |
-| `wt detach [slug]` | Remove wt-managed worktrees for a project and delete its registry entry (add `-y` to skip prompts).         |
-| `wt main`       | Output the main repository path.                                                                          |
-| `wt config`     | Inspect or tweak CLI behavior.                                                                            |
-| `wt reinstall`  | Run the bundled `uninstall.sh` followed by `install.sh` to refresh wt in place.                          |
-| `wt uninstall`  | Remove the binary and shell hooks.                                                                        |
-| `wt help`       | Show built-in reference for all commands.                                                                 |
+| `wt <name>`                          | Jump straight into an existing worktree directory.                                                         |
+| `wt rm [name ...]`                   | Delete current worktree or any named ones (prompts for current unless `--yes`).                            |
+| `wt clean`                           | Batch-remove numerically named worktrees and matching `feat/*` branches.                                   |
+| `wt detach [slug]`                   | Remove wt-managed worktrees for a project and delete its registry entry (add `-y` to skip prompts).        |
+| `wt main`                            | Output the main repository path.                                                                           |
+| `wt config`                          | Inspect or tweak CLI behavior.                                                                             |
+| `wt reinstall`                       | Run the bundled `uninstall.sh` followed by `install.sh` to refresh wt in place.                            |
+| `wt uninstall`                       | Remove the binary and shell hooks.                                                                         |
+| `wt help`                            | Show built-in reference for all commands.                                                                  |
 
 ### Syncing staged changes
 
