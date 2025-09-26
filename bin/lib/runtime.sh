@@ -49,6 +49,27 @@ MESSAGES_LOADED=0
 AUTO_CD_HINT_SHOWN=0
 LIST_PRIMARY_WORKTREE_PATH=""
 
+PROMPT_UI_INITIALIZED=0
+PROMPT_ASSUME_DEFAULTS=0
+PROMPT_HAS_TTY=0
+PROMPT_USE_COLOR=0
+PROMPT_SUPPORTS_READLINE=0
+PROMPT_COLOR_RESET=""
+PROMPT_COLOR_CYAN=""
+PROMPT_COLOR_GRAY=""
+PROMPT_COLOR_GREEN=""
+PROMPT_COLOR_BLUE=""
+PROMPT_COLOR_BOLD=""
+PROMPT_COLOR_UNDERLINE=""
+PROMPT_FORMAT_UNDERLINE_END=""
+PROMPT_LAST_LABEL=""
+PROMPT_LAST_VALUE=""
+PROMPT_SYMBOL_QUESTION="?"
+PROMPT_SYMBOL_SUCCESS="✔"
+PROMPT_SYMBOL_ARROW="›"
+PROMPT_SYMBOL_CHOICE="❯"
+PROMPT_SYMBOL_ELLIPSIS="…"
+
 ensure_messages_loaded() {
   if [ "$MESSAGES_LOADED" = "1" ]; then
     return
@@ -667,6 +688,669 @@ tty_menu_select() {
     printf '\033[%dA' "$last_lines" >&2
     printf '\033[J' >&2
   done
+}
+
+prompt_init_ui() {
+  if [ "$PROMPT_UI_INITIALIZED" -eq 1 ]; then
+    return
+  fi
+
+  PROMPT_UI_INITIALIZED=1
+
+  if [ -t 0 ] && [ -t 2 ]; then
+    PROMPT_HAS_TTY=1
+  else
+    PROMPT_HAS_TTY=0
+  fi
+
+  PROMPT_SUPPORTS_READLINE=0
+  PROMPT_READ_TIMEOUT_SHORT=1
+  if [ -n "${BASH_VERSINFO+x}" ]; then
+    if [ "${BASH_VERSINFO[0]}" -ge 4 ]; then
+      PROMPT_SUPPORTS_READLINE=1
+      PROMPT_READ_TIMEOUT_SHORT='0.05'
+    fi
+  fi
+
+  if [ "$PROMPT_HAS_TTY" -eq 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    PROMPT_USE_COLOR=1
+  else
+    PROMPT_USE_COLOR=0
+  fi
+
+  local sgr0="" setaf6="" setaf8="" setaf2="" setaf4="" bold_seq="" smul="" rmul=""
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && command -v tput > /dev/null 2>&1; then
+    sgr0=$(tput sgr0 2> /dev/null || true)
+    setaf6=$(tput setaf 6 2> /dev/null || true)
+    setaf8=$(tput setaf 8 2> /dev/null || true)
+    setaf2=$(tput setaf 2 2> /dev/null || true)
+    setaf4=$(tput setaf 4 2> /dev/null || true)
+    bold_seq=$(tput bold 2> /dev/null || true)
+    smul=$(tput smul 2> /dev/null || true)
+    rmul=$(tput rmul 2> /dev/null || true)
+  fi
+
+  if [ -n "$sgr0" ]; then
+    PROMPT_COLOR_RESET="$sgr0"
+  else
+    PROMPT_COLOR_RESET=$'\033[0m'
+  fi
+
+  if [ -n "$setaf6" ]; then
+    PROMPT_COLOR_CYAN="$setaf6"
+  else
+    PROMPT_COLOR_CYAN=$'\033[36m'
+  fi
+
+  if [ -n "$setaf8" ]; then
+    PROMPT_COLOR_GRAY="$setaf8"
+  else
+    PROMPT_COLOR_GRAY=$'\033[90m'
+  fi
+
+  if [ -n "$setaf2" ]; then
+    PROMPT_COLOR_GREEN="$setaf2"
+  else
+    PROMPT_COLOR_GREEN=$'\033[32m'
+  fi
+
+  if [ -n "$setaf4" ]; then
+    PROMPT_COLOR_BLUE="$setaf4"
+  else
+    PROMPT_COLOR_BLUE=$'\033[34m'
+  fi
+
+  if [ -n "$bold_seq" ]; then
+    PROMPT_COLOR_BOLD="$bold_seq"
+  else
+    PROMPT_COLOR_BOLD=$'\033[1m'
+  fi
+
+  if [ -n "$smul" ] && [ -n "$rmul" ]; then
+    PROMPT_COLOR_UNDERLINE="$smul"
+    PROMPT_FORMAT_UNDERLINE_END="$rmul"
+  else
+    PROMPT_COLOR_UNDERLINE=$'\033[4m'
+    PROMPT_FORMAT_UNDERLINE_END=$'\033[24m'
+  fi
+
+  if [ "$PROMPT_USE_COLOR" -eq 0 ]; then
+    PROMPT_COLOR_RESET=""
+    PROMPT_COLOR_CYAN=""
+    PROMPT_COLOR_GRAY=""
+    PROMPT_COLOR_GREEN=""
+    PROMPT_COLOR_BLUE=""
+    PROMPT_COLOR_BOLD=""
+    PROMPT_COLOR_UNDERLINE=""
+    PROMPT_FORMAT_UNDERLINE_END=""
+  fi
+
+  PROMPT_CURSOR_HIDDEN=0
+}
+
+prompt_wrap_for_readline() {
+  local text="$1"
+  if [ "$PROMPT_SUPPORTS_READLINE" -eq 1 ] && [ "$PROMPT_USE_COLOR" -eq 1 ]; then
+    printf '%s' "$text" | sed -e $'s/\x1b\[[0-9;]*m/\x01&\x02/g'
+    return
+  fi
+  printf '%s' "$text"
+}
+
+prompt_style_bold() {
+  local text="$1"
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && [ -n "$PROMPT_COLOR_BOLD" ]; then
+    printf '%s%s%s' "$PROMPT_COLOR_BOLD" "$text" "$PROMPT_COLOR_RESET"
+    return
+  fi
+  printf '%s' "$text"
+}
+
+prompt_style_cyan() {
+  local text="$1"
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && [ -n "$PROMPT_COLOR_CYAN" ]; then
+    printf '%s%s%s' "$PROMPT_COLOR_CYAN" "$text" "$PROMPT_COLOR_RESET"
+    return
+  fi
+  printf '%s' "$text"
+}
+
+prompt_style_cyan_underline() {
+  local text="$1"
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && [ -n "$PROMPT_COLOR_CYAN" ] && [ -n "$PROMPT_COLOR_UNDERLINE" ]; then
+    printf '%s%s%s%s%s' "$PROMPT_COLOR_CYAN" "$PROMPT_COLOR_UNDERLINE" "$text" "$PROMPT_FORMAT_UNDERLINE_END" "$PROMPT_COLOR_RESET"
+    return
+  fi
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && [ -n "$PROMPT_COLOR_CYAN" ]; then
+    printf '%s%s%s' "$PROMPT_COLOR_CYAN" "$text" "$PROMPT_COLOR_RESET"
+    return
+  fi
+  printf '%s' "$text"
+}
+
+prompt_style_green() {
+  local text="$1"
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && [ -n "$PROMPT_COLOR_GREEN" ]; then
+    printf '%s%s%s' "$PROMPT_COLOR_GREEN" "$text" "$PROMPT_COLOR_RESET"
+    return
+  fi
+  printf '%s' "$text"
+}
+
+prompt_style_gray() {
+  local text="$1"
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && [ -n "$PROMPT_COLOR_GRAY" ]; then
+    printf '%s%s%s' "$PROMPT_COLOR_GRAY" "$text" "$PROMPT_COLOR_RESET"
+    return
+  fi
+  printf '%s' "$text"
+}
+
+prompt_style_blue_bold() {
+  local text="$1"
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && [ -n "$PROMPT_COLOR_BLUE" ] && [ -n "$PROMPT_COLOR_BOLD" ]; then
+    printf '%s%s%s%s' "$PROMPT_COLOR_BLUE" "$PROMPT_COLOR_BOLD" "$text" "$PROMPT_COLOR_RESET"
+    return
+  fi
+  if [ "$PROMPT_USE_COLOR" -eq 1 ] && [ -n "$PROMPT_COLOR_BLUE" ]; then
+    printf '%s%s%s' "$PROMPT_COLOR_BLUE" "$text" "$PROMPT_COLOR_RESET"
+    return
+  fi
+  printf '%s' "$text"
+}
+
+prompt_style_question_symbol() {
+  prompt_style_cyan "$PROMPT_SYMBOL_QUESTION"
+}
+
+prompt_style_success_symbol() {
+  prompt_style_green "$PROMPT_SYMBOL_SUCCESS"
+}
+
+prompt_style_arrow_symbol() {
+  prompt_style_gray "$PROMPT_SYMBOL_ARROW"
+}
+
+prompt_question_header() {
+  local question="$1"
+  printf '%s %s' "$(prompt_style_question_symbol)" "$(prompt_style_bold "$question")"
+}
+
+prompt_question_line() {
+  local question="$1"
+  local suffix="$2"
+  local header
+  header="$(prompt_question_header "$question")"
+  if [ -n "$suffix" ]; then
+    printf '%s %s %s' "$header" "$(prompt_style_arrow_symbol)" "$suffix"
+  else
+    printf '%s %s' "$header" "$(prompt_style_arrow_symbol)"
+  fi
+}
+
+prompt_confirm_options_display() {
+  local selected="$1"
+  local yes_label
+  local no_label
+  yes_label="$(msg prompt_yes_label)"
+  no_label="$(msg prompt_no_label)"
+
+  local separator
+  separator="$(prompt_style_gray ' / ')"
+
+  local yes_display="$yes_label"
+  local no_display="$no_label"
+
+  if [ "$selected" -eq 1 ]; then
+    yes_display="$(prompt_style_cyan_underline "$yes_label")"
+  else
+    no_display="$(prompt_style_cyan_underline "$no_label")"
+  fi
+
+  printf '%s%s%s' "$no_display" "$separator" "$yes_display"
+}
+
+prompt_success_line() {
+  local question="$1"
+  local answer_display="$2"
+  local lines_to_clear="${3:-0}"
+
+  if [ "$PROMPT_HAS_TTY" -eq 1 ] && [ "$lines_to_clear" -gt 0 ]; then
+    printf '\033[%dA' "$lines_to_clear" >&2
+    printf '\r\033[J' >&2
+  fi
+
+  local ellipsis="$PROMPT_SYMBOL_ELLIPSIS"
+  ellipsis="$(prompt_style_gray "$ellipsis")"
+  printf '%s %s %s %s\n' "$(prompt_style_success_symbol)" "$(prompt_style_bold "$question")" "$ellipsis" "$answer_display" >&2
+}
+
+prompt_join_by_space() {
+  local IFS=' '
+  printf '%s' "$*"
+}
+
+prompt_hide_cursor() {
+  if [ "$PROMPT_HAS_TTY" -ne 1 ]; then
+    return
+  fi
+  if [ "${PROMPT_CURSOR_HIDDEN:-0}" -eq 1 ]; then
+    return
+  fi
+  printf '\033[?25l' >&2
+  PROMPT_CURSOR_HIDDEN=1
+}
+
+prompt_show_cursor() {
+  if [ "${PROMPT_CURSOR_HIDDEN:-0}" -ne 1 ]; then
+    return
+  fi
+  printf '\033[?25h' >&2
+  PROMPT_CURSOR_HIDDEN=0
+}
+
+prompt_trim_spaces() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+prompt_input_text() {
+  if [ $# -lt 2 ]; then
+    return 1
+  fi
+
+  local question="$1"
+  local default_value="$2"
+  local allow_empty="${3:-0}"
+
+  prompt_init_ui
+
+  local interactive=1
+  if [ "$PROMPT_HAS_TTY" -ne 1 ] || [ "$PROMPT_ASSUME_DEFAULTS" -eq 1 ]; then
+    interactive=0
+  fi
+
+  local answer="$default_value"
+  local lines_to_clear=0
+  local buffer=""
+
+  if [ "$interactive" -eq 1 ]; then
+    lines_to_clear=1
+    while true; do
+      local suffix=""
+      if [ -n "$buffer" ]; then
+        suffix="$buffer"
+      elif [ -n "$default_value" ]; then
+        suffix="$(prompt_style_gray "$default_value")"
+      fi
+
+      local line
+      line="$(prompt_question_line "$question" "$suffix")"
+      printf '\r\033[K%s' "$line" >&2
+
+      local key=""
+      if ! IFS= read -rsn1 key; then
+        printf '\n' >&2
+        return 1
+      fi
+
+      if [ -z "$key" ]; then
+        key=$'\n'
+      fi
+
+      case "$key" in
+      $'\n' | $'\r')
+        printf '\n' >&2
+        break
+        ;;
+      $'\177')
+        if [ -n "$buffer" ]; then
+          buffer="${buffer%?}"
+        fi
+        ;;
+      $'\x15')
+        buffer=""
+        ;;
+      $'\x17')
+        buffer=""
+        ;;
+      $'\x1b')
+        local key2=""
+        if [ "$PROMPT_READ_TIMEOUT_SHORT" != 0 ]; then
+          if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key2 && [ "$key2" = "[" ]; then
+            local key3=""
+            if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key3; then
+              :
+            fi
+          fi
+        else
+          if IFS= read -rsn1 key2 && [ "$key2" = "[" ]; then
+            local key3=""
+            if IFS= read -rsn1 key3; then
+              :
+            fi
+          fi
+        fi
+        ;;
+      *)
+        if [[ "$key" =~ [[:print:]] ]]; then
+          buffer="$buffer$key"
+        fi
+        ;;
+      esac
+    done
+
+    if [ -n "$buffer" ]; then
+      answer="$(prompt_trim_spaces "$buffer")"
+    else
+      if [ -n "$default_value" ]; then
+        answer="$default_value"
+      elif [ "$allow_empty" -eq 1 ]; then
+        answer=""
+      else
+        answer="$default_value"
+      fi
+    fi
+  else
+    if [ -z "$answer" ] && [ "$allow_empty" -ne 1 ]; then
+      answer="$default_value"
+    fi
+  fi
+
+  local summary_display="$answer"
+  if [ -z "$summary_display" ]; then
+    local empty_label
+    empty_label="$(msg prompt_empty_display)"
+    summary_display="$(prompt_style_gray "$empty_label")"
+  fi
+
+  prompt_success_line "$question" "$summary_display" "$lines_to_clear"
+
+  printf '%s\n' "$answer"
+}
+
+prompt_confirm() {
+  if [ $# -lt 2 ]; then
+    return 1
+  fi
+
+  local question="$1"
+  local default_yes="$2"
+  if [ "$default_yes" -ne 0 ]; then
+    default_yes=1
+  fi
+
+  prompt_init_ui
+
+  local interactive=1
+  if [ "$PROMPT_HAS_TTY" -ne 1 ] || [ "$PROMPT_ASSUME_DEFAULTS" -eq 1 ]; then
+    interactive=0
+  fi
+
+  local selected="$default_yes"
+
+  local lines_to_clear=0
+
+  if [ "$interactive" -eq 1 ]; then
+    local base=""
+    base="$(prompt_question_header "$question")"
+    local line=""
+    prompt_hide_cursor
+    while true; do
+      line="${base} $(prompt_style_arrow_symbol) $(prompt_confirm_options_display "$selected")"
+      printf '\r\033[K%s' "$line" >&2
+
+      local key=""
+      if ! IFS= read -rsn1 key; then
+        prompt_show_cursor
+        printf '\n' >&2
+        return 1
+      fi
+
+      if [ -z "$key" ]; then
+        key=$'\n'
+      fi
+
+      case "$key" in
+      $'\n' | $'\r')
+        printf '\n' >&2
+        break
+        ;;
+      $'\x1b')
+        local key2=""
+        if ! IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key2; then
+          prompt_show_cursor
+          printf '\n' >&2
+          return 1
+        fi
+        if [ "$key2" = "[" ]; then
+          local key3=""
+          if ! IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key3; then
+            continue
+          fi
+          case "$key3" in
+          C)
+            selected=1
+            ;;
+          D)
+            selected=0
+            ;;
+          esac
+        fi
+        ;;
+      y | Y)
+        selected=1
+        printf '\n' >&2
+        break
+        ;;
+      n | N)
+        selected=0
+        printf '\n' >&2
+        break
+        ;;
+      q | Q)
+        prompt_show_cursor
+        printf '\n' >&2
+        return 1
+        ;;
+      h | H | ?)
+        continue
+        ;;
+      *)
+        if [ "$key" = "l" ] || [ "$key" = "L" ] || [ "$key" = "1" ]; then
+          selected=1
+        elif [ "$key" = "0" ]; then
+          selected=0
+        fi
+        ;;
+      esac
+    done
+    lines_to_clear=1
+  fi
+
+  local summary=""
+  summary="$(prompt_confirm_options_display "$selected")"
+  prompt_success_line "$question" "$summary" "$lines_to_clear"
+  prompt_show_cursor
+  printf '%d\n' "$selected"
+}
+
+prompt_choice() {
+  if [ $# -lt 3 ]; then
+    return 1
+  fi
+
+  local question="$1"
+  local default_index="$2"
+  shift 2
+
+  local -a labels=()
+  local -a values=()
+  local -a hints=()
+
+  local raw=""
+  for raw in "$@"; do
+    local label="$raw"
+    local value=""
+    local hint=""
+
+    if [[ "$raw" == *'|'* ]]; then
+      label="${raw%%|*}"
+      local remainder="${raw#*|}"
+      if [[ "$remainder" == *'|'* ]]; then
+        value="${remainder%%|*}"
+        hint="${remainder#*|}"
+      else
+        value="$remainder"
+      fi
+    else
+      value="$label"
+    fi
+
+    labels+=("$label")
+    values+=("$value")
+    hints+=("$hint")
+  done
+
+  local count=${#labels[@]}
+  if [ "$count" -eq 0 ]; then
+    return 1
+  fi
+
+  prompt_init_ui
+
+  if [ -z "$default_index" ] || [ "$default_index" -lt 0 ] || [ "$default_index" -ge "$count" ]; then
+    default_index=0
+  fi
+
+  local interactive=1
+  if [ "$PROMPT_HAS_TTY" -ne 1 ] || [ "$PROMPT_ASSUME_DEFAULTS" -eq 1 ]; then
+    interactive=0
+  fi
+
+  local selected="$default_index"
+
+  local menu_lines=$((count + 1))
+
+  if [ "$interactive" -eq 1 ]; then
+    local hint_suffix=""
+    local hint_message
+    hint_message="$(msg prompt_choice_hint)"
+    if [ -n "$hint_message" ]; then
+      hint_suffix="$(prompt_style_gray "$hint_message")"
+    fi
+
+    local rendered=0
+    prompt_hide_cursor
+    while true; do
+      if [ "$rendered" -ne 0 ]; then
+        printf '\033[%dA' "$menu_lines" >&2
+      else
+        rendered=1
+      fi
+
+      local header
+      header="$(prompt_question_line "$question" "$hint_suffix")"
+      printf '\r\033[K%s\n' "$header" >&2
+
+      local idx=0
+      while [ "$idx" -lt "$count" ]; do
+        local pointer="  "
+        local option_label="${labels[$idx]}"
+        local decorated_label="$option_label"
+        if [ "$idx" -eq "$selected" ]; then
+          pointer="$(prompt_style_cyan "$PROMPT_SYMBOL_CHOICE") "
+          decorated_label="$(prompt_style_cyan_underline "$option_label")"
+        fi
+
+        local hint_line="${hints[$idx]}"
+        local suffix=""
+        if [ "$idx" -eq "$selected" ] && [ -n "$hint_line" ]; then
+          local hint_text=" - $hint_line"
+          suffix="$(prompt_style_gray "$hint_text")"
+        fi
+
+        printf '\r\033[K%s   %s%s\n' "$pointer" "$decorated_label" "$suffix" >&2
+        idx=$((idx + 1))
+      done
+
+      local key=""
+      if ! IFS= read -rsn1 key; then
+        prompt_show_cursor
+        printf '\n' >&2
+        return 1
+      fi
+
+      if [ -z "$key" ]; then
+        key=$'\n'
+      fi
+
+      local exit_menu=0
+      local cancel_menu=0
+
+      case "$key" in
+      $'\n' | $'\r')
+        exit_menu=1
+        ;;
+      $'\x1b')
+        local key2=""
+        if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key2 && [ "$key2" = "[" ]; then
+          local key3=""
+          if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key3; then
+            case "$key3" in
+            A)
+              selected=$(((selected - 1 + count) % count))
+              ;;
+            B)
+              selected=$(((selected + 1) % count))
+              ;;
+            esac
+          fi
+        fi
+        ;;
+      k | K)
+        selected=$(((selected - 1 + count) % count))
+        ;;
+      j | J)
+        selected=$(((selected + 1) % count))
+        ;;
+      [0-9])
+        local choice=$((10#$key))
+        if [ "$choice" -ge 1 ] && [ "$choice" -le "$count" ]; then
+          selected=$((choice - 1))
+        fi
+        ;;
+      q | Q)
+        cancel_menu=1
+        exit_menu=1
+        ;;
+      esac
+
+      if [ "$exit_menu" -eq 1 ]; then
+        if [ "$cancel_menu" -eq 1 ]; then
+          printf '\033[%dA' "$menu_lines" >&2
+          printf '\033[J' >&2
+          prompt_show_cursor
+          return 1
+        fi
+        break
+      fi
+    done
+  fi
+
+  if [ "$interactive" -eq 1 ]; then
+    printf '\033[%dA' "$menu_lines" >&2
+    printf '\033[J' >&2
+  fi
+
+  PROMPT_LAST_LABEL="${labels[$selected]}"
+  PROMPT_LAST_VALUE="${values[$selected]}"
+
+  prompt_success_line "$question" "$PROMPT_LAST_LABEL"
+  prompt_show_cursor
+  printf '%s\n' "$PROMPT_LAST_VALUE"
 }
 
 worktree_prompt_select_global() {
@@ -2049,6 +2733,21 @@ ensure_within_project_directory() {
 
   if path_is_within "$current_dir" "$PROJECT_DIR_ABS"; then
     return 0
+  fi
+
+  local git_toplevel=""
+  git_toplevel=$(git rev-parse --show-toplevel 2> /dev/null || true)
+  if [ -n "$git_toplevel" ]; then
+    if git_toplevel=$(cd "$git_toplevel" 2> /dev/null && pwd -P); then
+      if [ "$git_toplevel" = "$PROJECT_DIR_ABS" ]; then
+        return 0
+      fi
+
+      # Accept commands executed from registered worktree roots.
+      if worktree_branch_for_path "$git_toplevel" > /dev/null 2>&1; then
+        return 0
+      fi
+    fi
   fi
 
   die "$(msg project_directory_required "$PROJECT_DIR_ABS")"

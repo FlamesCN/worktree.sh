@@ -101,7 +101,7 @@ msg_en() {
     printf '✅ Worktree ready: %s' "$1"
     ;;
   init_set_project)
-    printf 'wt init completed successfully.\n\nCaptured defaults:\n  repo.path   → \033[1m%s\033[0m\n' "$1"
+    printf 'wt init completed successfully.\n\033[94;1mrepo.path\033[0m   → \033[32m%s\033[0m\n' "$1"
     ;;
   init_branch_option_deprecated)
     printf '  repo.branch has been removed; ignoring requested branch "%s"\n' "$1"
@@ -117,6 +117,141 @@ msg_en() {
     ;;
   init_done)
     printf ''
+    ;;
+  init_prompt_repo_path)
+    printf 'Repository path for wt to track?'
+    ;;
+  init_prompt_copy_env)
+    printf 'Copy environment files automatically?'
+    ;;
+  init_prompt_copy_env_files)
+    printf 'Which environment files should be copied?'
+    ;;
+  init_prompt_install_command)
+    printf 'Which command installs dependencies?'
+    ;;
+  init_prompt_install_custom)
+    printf 'Enter a custom install command:'
+    ;;
+  init_install_option_npm_ci_hint)
+    printf 'uses package-lock.json'
+    ;;
+  init_install_option_npm_install_hint)
+    printf 'skips lockfile optimizations'
+    ;;
+  init_install_option_pnpm_install_hint)
+    printf 'requires pnpm-lock.yaml'
+    ;;
+  init_install_option_yarn_install_hint)
+    printf 'requires yarn.lock'
+    ;;
+  init_install_option_bun_install_hint)
+    printf 'requires Bun'
+    ;;
+  init_install_option_uv_sync_hint)
+    printf 'Python projects using uv'
+    ;;
+  init_install_option_poetry_install_hint)
+    printf 'Python projects using Poetry'
+    ;;
+  init_install_option_pipenv_install_hint)
+    printf 'Python projects using Pipenv'
+    ;;
+  init_install_option_pip_requirements_hint)
+    printf 'Installs from requirements.txt'
+    ;;
+  init_install_option_skip_label)
+    printf 'None'
+    ;;
+  init_install_option_skip_hint)
+    printf 'Skip automatic dependency installation'
+    ;;
+  init_install_option_custom_label)
+    printf 'Custom command'
+    ;;
+  init_install_option_custom_hint)
+    printf 'Provide your own install command'
+    ;;
+  init_install_option_detected_hint)
+    printf 'Detected from repository files'
+    ;;
+  init_install_option_existing_hint)
+    printf 'Existing project configuration'
+    ;;
+  init_prompt_serve_command)
+    printf 'Which command starts the dev server?'
+    ;;
+  init_prompt_serve_custom)
+    printf 'Enter a custom dev command:'
+    ;;
+  init_serve_option_npm_run_dev_hint)
+    printf 'npm run dev (package.json scripts)'
+    ;;
+  init_serve_option_pnpm_dev_hint)
+    printf 'pnpm dev (package.json scripts)'
+    ;;
+  init_serve_option_yarn_dev_hint)
+    printf 'yarn dev (package.json scripts)'
+    ;;
+  init_serve_option_bun_dev_hint)
+    printf 'bun dev (package.json scripts)'
+    ;;
+  init_serve_option_uv_run_hint)
+    printf 'uv run (Python dev server)'
+    ;;
+  init_serve_option_manage_runserver_hint)
+    printf 'Django manage.py runserver'
+    ;;
+  init_serve_option_python_app_hint)
+    printf 'python app.py'
+    ;;
+  init_serve_option_skip_label)
+    printf 'None'
+    ;;
+  init_serve_option_skip_hint)
+    printf 'Skip automatic dev server startup'
+    ;;
+  init_serve_option_custom_label)
+    printf 'Custom command'
+    ;;
+  init_serve_option_custom_hint)
+    printf 'Provide your own dev command'
+    ;;
+  init_serve_option_detected_hint)
+    printf 'Detected from repository files'
+    ;;
+  init_serve_option_existing_hint)
+    printf 'Existing project configuration'
+    ;;
+  init_prompt_serve_logging_path)
+    printf 'Where should dev logs be written? (leave empty to disable)'
+    ;;
+  init_prompt_branch_prefix)
+    printf 'Preferred worktree branch prefix?'
+    ;;
+  init_prompt_branch_custom)
+    printf 'Enter a custom branch prefix:'
+    ;;
+  init_branch_option_current_hint)
+    printf 'Current configuration'
+    ;;
+  init_branch_option_default_hint)
+    printf 'Default prefix (recommended)'
+    ;;
+  init_branch_option_alternative_hint)
+    printf 'Common alternative prefix'
+    ;;
+  init_branch_option_skip_label)
+    printf 'Keep current setting'
+    ;;
+  init_branch_option_skip_hint)
+    printf 'Leave the prefix unchanged'
+    ;;
+  init_branch_option_custom_label)
+    printf 'Custom prefix'
+    ;;
+  init_branch_option_custom_hint)
+    printf 'Provide your own branch prefix'
     ;;
   aborted)
     printf 'Aborted'
@@ -264,6 +399,21 @@ msg_en() {
     ;;
   select_navigation_hint)
     printf '(Use ↑/↓ or j/k to move, Enter to confirm, Esc to cancel. Digits jump directly.)'
+    ;;
+  prompt_yes_label)
+    printf 'Yes'
+    ;;
+  prompt_no_label)
+    printf 'No'
+    ;;
+  prompt_choice_hint)
+    printf '%s' '- Use arrow keys. Press Enter to confirm.'
+    ;;
+  prompt_default_hint)
+    printf 'Default (press Enter to keep): %s' "$1"
+    ;;
+  prompt_empty_display)
+    printf '(empty)'
     ;;
   select_project_prompt)
     printf 'Select a project:'
@@ -649,7 +799,7 @@ msg_zh() {
     printf '✅ 新 worktree 就绪: %s' "$1"
     ;;
   init_set_project)
-    printf 'wt init 已完成。\n\n捕获的默认值：\n  repo.path   → \033[1m%s\033[0m\n' "$1"
+    printf 'wt init 已完成。\n\033[94;1mrepo.path\033[0m   → \033[32m%s\033[0m\n' "$1"
     ;;
   init_branch_option_deprecated)
     printf '  repo.branch 已移除；忽略传入的分支 "%s"\n' "$1"
@@ -662,6 +812,141 @@ msg_zh() {
     ;;
   init_done)
     printf ''
+    ;;
+  init_prompt_repo_path)
+    printf 'wt 追踪的主仓库地址?'
+    ;;
+  init_prompt_copy_env)
+    printf '是否自动拷贝环境变量?'
+    ;;
+  init_prompt_copy_env_files)
+    printf '拷贝哪些环境变量文件?'
+    ;;
+  init_prompt_install_command)
+    printf '安装依赖的命令?'
+    ;;
+  init_prompt_install_custom)
+    printf '请输入自定义安装命令：'
+    ;;
+  init_install_option_npm_ci_hint)
+    printf '依赖 package-lock.json'
+    ;;
+  init_install_option_npm_install_hint)
+    printf '无需锁文件，速度较慢'
+    ;;
+  init_install_option_pnpm_install_hint)
+    printf '需要 pnpm-lock.yaml'
+    ;;
+  init_install_option_yarn_install_hint)
+    printf '需要 yarn.lock'
+    ;;
+  init_install_option_bun_install_hint)
+    printf '需要 Bun'
+    ;;
+  init_install_option_uv_sync_hint)
+    printf '适用于 uv 虚拟环境'
+    ;;
+  init_install_option_poetry_install_hint)
+    printf '适用于 Poetry 项目'
+    ;;
+  init_install_option_pipenv_install_hint)
+    printf '适用于 Pipenv 项目'
+    ;;
+  init_install_option_pip_requirements_hint)
+    printf 'pip install -r requirements.txt'
+    ;;
+  init_install_option_skip_label)
+    printf '不自动安装'
+    ;;
+  init_install_option_skip_hint)
+    printf '跳过依赖安装步骤'
+    ;;
+  init_install_option_custom_label)
+    printf '自定义命令'
+    ;;
+  init_install_option_custom_hint)
+    printf '输入你自己的安装命令'
+    ;;
+  init_install_option_detected_hint)
+    printf '根据仓库特征自动检测'
+    ;;
+  init_install_option_existing_hint)
+    printf '沿用当前配置'
+    ;;
+  init_prompt_serve_command)
+    printf '启动开发服务的命令?'
+    ;;
+  init_prompt_serve_custom)
+    printf '请输入自定义启动命令：'
+    ;;
+  init_serve_option_npm_run_dev_hint)
+    printf 'npm run dev（package.json scripts）'
+    ;;
+  init_serve_option_pnpm_dev_hint)
+    printf 'pnpm dev（package.json scripts）'
+    ;;
+  init_serve_option_yarn_dev_hint)
+    printf 'yarn dev（package.json scripts）'
+    ;;
+  init_serve_option_bun_dev_hint)
+    printf 'bun dev（package.json scripts）'
+    ;;
+  init_serve_option_uv_run_hint)
+    printf 'uv run（Python 开发服务）'
+    ;;
+  init_serve_option_manage_runserver_hint)
+    printf 'Django manage.py runserver'
+    ;;
+  init_serve_option_python_app_hint)
+    printf 'python app.py'
+    ;;
+  init_serve_option_skip_label)
+    printf '不自动启动'
+    ;;
+  init_serve_option_skip_hint)
+    printf '跳过自动启动开发服务'
+    ;;
+  init_serve_option_custom_label)
+    printf '自定义命令'
+    ;;
+  init_serve_option_custom_hint)
+    printf '输入你自己的启动命令'
+    ;;
+  init_serve_option_detected_hint)
+    printf '根据仓库特征自动检测'
+    ;;
+  init_serve_option_existing_hint)
+    printf '沿用当前配置'
+    ;;
+  init_prompt_serve_logging_path)
+    printf '开发日志输出目录?（留空则禁用）'
+    ;;
+  init_prompt_branch_prefix)
+    printf '首选 worktree 分支前缀?'
+    ;;
+  init_prompt_branch_custom)
+    printf '请输入自定义分支前缀：'
+    ;;
+  init_branch_option_current_hint)
+    printf '沿用当前配置'
+    ;;
+  init_branch_option_default_hint)
+    printf '默认分支前缀（推荐）'
+    ;;
+  init_branch_option_alternative_hint)
+    printf '常见备用前缀'
+    ;;
+  init_branch_option_skip_label)
+    printf '保持现状'
+    ;;
+  init_branch_option_skip_hint)
+    printf '不修改默认前缀'
+    ;;
+  init_branch_option_custom_label)
+    printf '自定义前缀'
+    ;;
+  init_branch_option_custom_hint)
+    printf '输入你自己的分支前缀'
     ;;
   aborted)
     printf '已取消'
@@ -827,6 +1112,21 @@ msg_zh() {
     ;;
   select_navigation_hint)
     printf '（使用 ↑/↓ 或 j/k 移动，Enter 确认，Esc 取消；也可直接输入数字跳转。）'
+    ;;
+  prompt_yes_label)
+    printf 'Yes'
+    ;;
+  prompt_no_label)
+    printf 'No'
+    ;;
+  prompt_choice_hint)
+    printf '%s' '- 使用方向键选择，按回车确认。'
+    ;;
+  prompt_default_hint)
+    printf '默认值（按回车保留）：%s' "$1"
+    ;;
+  prompt_empty_display)
+    printf '（留空）'
     ;;
   select_project_prompt)
     printf '请选择项目：'

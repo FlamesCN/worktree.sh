@@ -576,13 +576,111 @@ REINSTALL_USAGE_EN
   info "$(msg reinstall_complete)"
 }
 
+init_option_append_unique() {
+  local array_name="$1"
+  local value="$2"
+  local label="$3"
+  local hint="$4"
+
+  local -a option_ref=()
+  if eval "test -n \"\${${array_name}+x}\""; then
+    eval "option_ref=(\"\${${array_name}[@]}\")"
+  fi
+  local existing
+  if [ ${#option_ref[@]} -gt 0 ]; then
+    for existing in "${option_ref[@]}"; do
+      local current="${existing#*|}"
+      current="${current%%|*}"
+      if [ "$current" = "$value" ]; then
+        return 0
+      fi
+    done
+  fi
+
+  local entry
+  printf -v entry '%s|%s|%s' "$label" "$value" "$hint"
+  if ! eval "test -n \"\${${array_name}+x}\""; then
+    eval "${array_name}=()"
+  fi
+  eval "${array_name}+=(\"\$entry\")"
+}
+
+init_option_find_index() {
+  local array_name="$1"
+  local target="$2"
+
+  local -a option_ref=()
+  if eval "test -n \"\${${array_name}+x}\""; then
+    eval "option_ref=(\"\${${array_name}[@]}\")"
+  fi
+  local idx=0
+  local entry
+  if [ ${#option_ref[@]} -gt 0 ]; then
+    for entry in "${option_ref[@]}"; do
+      local current="${entry#*|}"
+      current="${current%%|*}"
+      if [ "$current" = "$target" ]; then
+        printf '%d\n' "$idx"
+        return 0
+      fi
+      idx=$((idx + 1))
+    done
+  fi
+
+  printf '%d\n' -1
+}
+
+init_option_extract_value() {
+  local entry="$1"
+  local remainder="${entry#*|}"
+  printf '%s\n' "${remainder%%|*}"
+}
+
+init_option_focus_default() {
+  local array_name="$1"
+  local target_index="$2"
+
+  local -a option_ref=()
+  if eval "test -n \"\${${array_name}+x}\""; then
+    eval "option_ref=(\"\${${array_name}[@]}\")"
+  fi
+  local count=${#option_ref[@]}
+  if [ "$target_index" -lt 0 ] || [ "$target_index" -ge "$count" ]; then
+    printf '%d\n' 0
+    return 0
+  fi
+
+  if [ "$target_index" -eq 0 ]; then
+    printf '%d\n' 0
+    return 0
+  fi
+
+  local default_entry="${option_ref[$target_index]}"
+  local -a reordered=("$default_entry")
+  local idx
+  if [ ${#option_ref[@]} -gt 0 ]; then
+    for idx in "${!option_ref[@]}"; do
+      if [ "$idx" -eq "$target_index" ]; then
+        continue
+      fi
+      reordered+=("${option_ref[$idx]}")
+    done
+  fi
+
+  eval "${array_name}=(\"\${reordered[@]}\")"
+  printf '%d\n' 0
+}
+
 cmd_init() {
-  local branch_option=""
+  local branch_option="" assume_yes=0
   while [ $# -gt 0 ]; do
     case "$1" in
     --branch | branch)
       shift || die "$(msg branch_requires_value)"
       branch_option="$1"
+      ;;
+    -y | --yes)
+      assume_yes=1
       ;;
     --help | help)
       case "$LANGUAGE" in
@@ -663,8 +761,513 @@ INIT_USAGE_EN
     fi
   fi
 
-  config_set_in_file "$target_file" "repo.path" "$repo_root_abs"
-  info "$(msg init_set_project "$repo_root_abs")"
+  local value
+  local bool_val
+  local copy_env_enabled_default="$CONFIG_DEFAULT_COPY_ENV_ENABLED"
+  local -a copy_env_files_default=("${CONFIG_DEFAULT_COPY_ENV_FILES[@]}")
+  local install_enabled_default="$CONFIG_DEFAULT_INSTALL_DEPS_ENABLED"
+  local install_command_default="$CONFIG_DEFAULT_INSTALL_DEPS_COMMAND"
+  local serve_enabled_default="$CONFIG_DEFAULT_SERVE_DEV_ENABLED"
+  local serve_command_default="$CONFIG_DEFAULT_SERVE_DEV_COMMAND"
+  local serve_logging_path_default="$CONFIG_DEFAULT_SERVE_DEV_LOGGING_PATH"
+  local branch_prefix_default="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
+
+  if value=$(config_file_get_value "$target_file" "add.copy-env.enabled" 2> /dev/null || true); then
+    if bool_val=$(parse_bool "$value" 2> /dev/null); then
+      copy_env_enabled_default="$bool_val"
+    fi
+  fi
+
+  if value=$(config_file_get_value "$target_file" "add.copy-env.files" 2> /dev/null || true); then
+    if [ -n "$value" ] && [[ "$value" =~ ^\[.*\]$ ]]; then
+      local trimmed
+      trimmed="${value#[}"
+      trimmed="${trimmed%]}"
+      local -a parsed_files=()
+      if [ -n "$trimmed" ]; then
+        IFS=',' read -r -a parsed_files <<< "$trimmed"
+      fi
+      copy_env_files_default=()
+      if [ ${#parsed_files[@]} -gt 0 ]; then
+        local item
+        for item in "${parsed_files[@]}"; do
+          item="${item#"${item%%[![:space:]]*}"}"
+          item="${item%"${item##*[![:space:]]}"}"
+          item="${item#\"}"
+          item="${item%\"}"
+          [ -n "$item" ] && copy_env_files_default+=("$item")
+        done
+      fi
+    fi
+  fi
+
+  if value=$(config_file_get_value "$target_file" "add.install-deps.enabled" 2> /dev/null || true); then
+    if bool_val=$(parse_bool "$value" 2> /dev/null); then
+      install_enabled_default="$bool_val"
+    fi
+  fi
+
+  if value=$(config_file_get_value "$target_file" "add.install-deps.command" 2> /dev/null || true); then
+    install_command_default="$value"
+  fi
+  install_command_default=$(prompt_trim_spaces "$install_command_default")
+
+  if value=$(config_file_get_value "$target_file" "add.serve-dev.enabled" 2> /dev/null || true); then
+    if bool_val=$(parse_bool "$value" 2> /dev/null); then
+      serve_enabled_default="$bool_val"
+    fi
+  fi
+
+  if value=$(config_file_get_value "$target_file" "add.serve-dev.command" 2> /dev/null || true); then
+    serve_command_default="$value"
+  fi
+  serve_command_default=$(prompt_trim_spaces "$serve_command_default")
+
+  if value=$(config_file_get_value "$target_file" "add.serve-dev.logging-path" 2> /dev/null || true); then
+    serve_logging_path_default="$value"
+  fi
+  serve_logging_path_default=$(prompt_trim_spaces "$serve_logging_path_default")
+
+  if value=$(config_file_get_value "$target_file" "add.branch-prefix" 2> /dev/null || true); then
+    branch_prefix_default="$value"
+  fi
+  branch_prefix_default=$(prompt_trim_spaces "$branch_prefix_default")
+
+  local previous_prompt_assume="$PROMPT_ASSUME_DEFAULTS"
+  PROMPT_ASSUME_DEFAULTS="$assume_yes"
+
+  local repo_input
+  if ! repo_input=$(prompt_input_text "$(msg init_prompt_repo_path)" "$repo_root_abs" 0); then
+    PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+    die "$(msg aborted)"
+  fi
+  repo_input=$(prompt_trim_spaces "$repo_input")
+  if [ -z "$repo_input" ]; then
+    repo_input="$repo_root_abs"
+  fi
+  local repo_path_selected
+  if repo_path_selected=$(cd "$repo_input" 2> /dev/null && pwd -P); then
+    :
+  else
+    repo_path_selected="$repo_input"
+  fi
+
+  local copy_env_choice
+  if ! copy_env_choice=$(prompt_confirm "$(msg init_prompt_copy_env)" "$copy_env_enabled_default"); then
+    PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+    die "$(msg aborted)"
+  fi
+  if [ "$copy_env_choice" -ne 0 ]; then
+    copy_env_choice=1
+  else
+    copy_env_choice=0
+  fi
+
+  local -a copy_env_files=("${copy_env_files_default[@]}")
+  local copy_env_files_str=""
+  if [ ${#copy_env_files_default[@]} -gt 0 ]; then
+    copy_env_files_str=$(prompt_join_by_space "${copy_env_files_default[@]}")
+  fi
+
+  if [ "$copy_env_choice" -eq 1 ]; then
+    local env_input
+    if ! env_input=$(prompt_input_text "$(msg init_prompt_copy_env_files)" "$copy_env_files_str" 1); then
+      PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+      die "$(msg aborted)"
+    fi
+    env_input=$(prompt_trim_spaces "$env_input")
+    if [ -z "$env_input" ]; then
+      copy_env_files=("${copy_env_files_default[@]}")
+    else
+      case "$env_input" in
+      none | None | NONE | 无)
+        copy_env_files=()
+        ;;
+      *)
+        local normalized
+        normalized="${env_input//,/ }"
+        copy_env_files=()
+        local token
+        for token in $normalized; do
+          token=$(prompt_trim_spaces "$token")
+          if [ -n "$token" ]; then
+            copy_env_files+=("$token")
+          fi
+        done
+        ;;
+      esac
+    fi
+  else
+    local files_summary_display
+    if [ -n "$copy_env_files_str" ]; then
+      files_summary_display=$(prompt_style_gray "$copy_env_files_str")
+    else
+      files_summary_display=$(prompt_style_gray "$(msg prompt_empty_display)")
+    fi
+    prompt_success_line "$(msg init_prompt_copy_env_files)" "$files_summary_display"
+  fi
+
+  local repo_has_package_json=0
+  local repo_has_package_lock=0
+  local repo_has_pnpm=0
+  local repo_has_yarn=0
+  local repo_has_bun=0
+  local repo_has_poetry=0
+  local repo_has_pipenv=0
+  local repo_has_requirements=0
+  local repo_has_uv=0
+  local repo_has_manage=0
+  local repo_has_app=0
+
+  if [ -f "$repo_path_selected/package.json" ]; then
+    repo_has_package_json=1
+    if [ -f "$repo_path_selected/package-lock.json" ] || [ -f "$repo_path_selected/npm-shrinkwrap.json" ]; then
+      repo_has_package_lock=1
+    fi
+  fi
+
+  if [ -f "$repo_path_selected/pnpm-lock.yaml" ] || [ -f "$repo_path_selected/pnpm-workspace.yaml" ]; then
+    repo_has_pnpm=1
+  fi
+
+  if [ -f "$repo_path_selected/yarn.lock" ]; then
+    repo_has_yarn=1
+  fi
+
+  if [ -f "$repo_path_selected/bun.lockb" ]; then
+    repo_has_bun=1
+  fi
+
+  if [ -f "$repo_path_selected/Pipfile" ]; then
+    repo_has_pipenv=1
+  fi
+
+  if [ -f "$repo_path_selected/requirements.txt" ]; then
+    repo_has_requirements=1
+  fi
+
+  if [ -f "$repo_path_selected/poetry.lock" ]; then
+    repo_has_poetry=1
+  fi
+
+  if [ -f "$repo_path_selected/pyproject.toml" ]; then
+    if grep -qi '^[[:space:]]*\[tool\.poetry\]' "$repo_path_selected/pyproject.toml" 2> /dev/null; then
+      repo_has_poetry=1
+    fi
+    if grep -qi '^[[:space:]]*\[tool\.uv\]' "$repo_path_selected/pyproject.toml" 2> /dev/null; then
+      repo_has_uv=1
+    fi
+  fi
+
+  if [ -f "$repo_path_selected/uv.lock" ]; then
+    repo_has_uv=1
+  fi
+
+  if [ -f "$repo_path_selected/manage.py" ]; then
+    repo_has_manage=1
+  fi
+
+  if [ -f "$repo_path_selected/app.py" ]; then
+    repo_has_app=1
+  fi
+
+  local package_has_dev=0
+  if [ "$repo_has_package_json" -eq 1 ]; then
+    if has_package_json_script "$repo_path_selected" dev; then
+      package_has_dev=1
+    fi
+  fi
+
+  local install_command_inferred=""
+  if install_command_inferred=$(infer_install_command "$repo_path_selected" 2> /dev/null); then
+    install_command_inferred=$(prompt_trim_spaces "$install_command_inferred")
+  else
+    install_command_inferred=""
+  fi
+
+  local serve_command_inferred=""
+  if serve_command_inferred=$(infer_serve_command "$repo_path_selected" 2> /dev/null); then
+    serve_command_inferred=$(prompt_trim_spaces "$serve_command_inferred")
+  else
+    serve_command_inferred=""
+  fi
+
+  local -a install_options=()
+  if [ "$repo_has_package_lock" -eq 1 ]; then
+    init_option_append_unique install_options 'npm ci' 'npm ci' "$(msg init_install_option_npm_ci_hint)"
+  fi
+  if [ "$repo_has_package_json" -eq 1 ]; then
+    init_option_append_unique install_options 'npm install' 'npm install' "$(msg init_install_option_npm_install_hint)"
+  fi
+  if [ "$repo_has_pnpm" -eq 1 ]; then
+    init_option_append_unique install_options 'pnpm install' 'pnpm install' "$(msg init_install_option_pnpm_install_hint)"
+  fi
+  if [ "$repo_has_yarn" -eq 1 ]; then
+    init_option_append_unique install_options 'yarn install' 'yarn install' "$(msg init_install_option_yarn_install_hint)"
+  fi
+  if [ "$repo_has_bun" -eq 1 ]; then
+    init_option_append_unique install_options 'bun install' 'bun install' "$(msg init_install_option_bun_install_hint)"
+  fi
+  if [ "$repo_has_uv" -eq 1 ]; then
+    init_option_append_unique install_options 'uv sync' 'uv sync' "$(msg init_install_option_uv_sync_hint)"
+  fi
+  if [ "$repo_has_poetry" -eq 1 ]; then
+    init_option_append_unique install_options 'poetry install' 'poetry install' "$(msg init_install_option_poetry_install_hint)"
+  fi
+  if [ "$repo_has_pipenv" -eq 1 ]; then
+    init_option_append_unique install_options 'pipenv install' 'pipenv install' "$(msg init_install_option_pipenv_install_hint)"
+  fi
+  if [ "$repo_has_requirements" -eq 1 ]; then
+    init_option_append_unique install_options 'pip install -r requirements.txt' 'pip install -r requirements.txt' "$(msg init_install_option_pip_requirements_hint)"
+  fi
+
+  if [ -n "$install_command_inferred" ]; then
+    init_option_append_unique install_options "$install_command_inferred" "$install_command_inferred" "$(msg init_install_option_detected_hint)"
+  fi
+
+  if [ "$created" -eq 0 ] && [ -n "$install_command_default" ]; then
+    init_option_append_unique install_options "$install_command_default" "$install_command_default" "$(msg init_install_option_existing_hint)"
+  fi
+
+  init_option_append_unique install_options '__skip__' "$(msg init_install_option_skip_label)" "$(msg init_install_option_skip_hint)"
+  init_option_append_unique install_options '__custom__' "$(msg init_install_option_custom_label)" "$(msg init_install_option_custom_hint)"
+
+  local default_install_index
+  if [ "$install_enabled_default" -eq 0 ]; then
+    default_install_index=$(init_option_find_index install_options '__skip__')
+  else
+    local desired_install_command=""
+    if [ "$created" -eq 0 ] && [ -n "$install_command_default" ]; then
+      desired_install_command="$install_command_default"
+    elif [ -n "$install_command_inferred" ]; then
+      desired_install_command="$install_command_inferred"
+    elif [ -n "$install_command_default" ]; then
+      desired_install_command="$install_command_default"
+    elif [ ${#install_options[@]} -gt 0 ]; then
+      desired_install_command=$(init_option_extract_value "${install_options[0]}")
+    fi
+
+    default_install_index=-1
+    if [ -n "$desired_install_command" ]; then
+      default_install_index=$(init_option_find_index install_options "$desired_install_command")
+    fi
+
+    if [ "$default_install_index" -lt 0 ]; then
+      default_install_index=$(init_option_find_index install_options '__skip__')
+    fi
+  fi
+
+  if [ "$default_install_index" -lt 0 ]; then
+    default_install_index=0
+  fi
+
+  default_install_index=$(init_option_focus_default install_options "$default_install_index")
+
+  local install_selection
+  if ! install_selection=$(prompt_choice "$(msg init_prompt_install_command)" "$default_install_index" "${install_options[@]}"); then
+    PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+    die "$(msg aborted)"
+  fi
+
+  local install_enabled
+  local install_command
+  if [ "$install_selection" = "__skip__" ]; then
+    install_enabled=0
+    install_command=""
+  elif [ "$install_selection" = "__custom__" ]; then
+    install_enabled=1
+    if ! install_command=$(prompt_input_text "$(msg init_prompt_install_custom)" "$install_command_default" 1); then
+      PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+      die "$(msg aborted)"
+    fi
+    install_command=$(prompt_trim_spaces "$install_command")
+  else
+    install_enabled=1
+    install_command="$install_selection"
+  fi
+
+  local -a serve_options=()
+  if [ "$repo_has_pnpm" -eq 1 ] && [ "$package_has_dev" -eq 1 ]; then
+    init_option_append_unique serve_options 'pnpm dev' 'pnpm dev' "$(msg init_serve_option_pnpm_dev_hint)"
+  fi
+  if [ "$repo_has_yarn" -eq 1 ] && [ "$package_has_dev" -eq 1 ]; then
+    init_option_append_unique serve_options 'yarn dev' 'yarn dev' "$(msg init_serve_option_yarn_dev_hint)"
+  fi
+  if [ "$repo_has_bun" -eq 1 ] && [ "$package_has_dev" -eq 1 ]; then
+    init_option_append_unique serve_options 'bun dev' 'bun dev' "$(msg init_serve_option_bun_dev_hint)"
+  fi
+  if [ "$repo_has_package_json" -eq 1 ] && [ "$package_has_dev" -eq 1 ]; then
+    init_option_append_unique serve_options 'npm run dev' 'npm run dev' "$(msg init_serve_option_npm_run_dev_hint)"
+  fi
+  if [ "$repo_has_uv" -eq 1 ]; then
+    init_option_append_unique serve_options 'uv run' 'uv run' "$(msg init_serve_option_uv_run_hint)"
+  fi
+  if [ "$repo_has_manage" -eq 1 ]; then
+    init_option_append_unique serve_options 'python manage.py runserver' 'python manage.py runserver' "$(msg init_serve_option_manage_runserver_hint)"
+  fi
+  if [ "$repo_has_app" -eq 1 ]; then
+    init_option_append_unique serve_options 'python app.py' 'python app.py' "$(msg init_serve_option_python_app_hint)"
+  fi
+
+  if [ -n "$serve_command_inferred" ]; then
+    init_option_append_unique serve_options "$serve_command_inferred" "$serve_command_inferred" "$(msg init_serve_option_detected_hint)"
+  fi
+
+  if [ "$created" -eq 0 ] && [ -n "$serve_command_default" ]; then
+    init_option_append_unique serve_options "$serve_command_default" "$serve_command_default" "$(msg init_serve_option_existing_hint)"
+  fi
+
+  init_option_append_unique serve_options '__skip__' "$(msg init_serve_option_skip_label)" "$(msg init_serve_option_skip_hint)"
+  init_option_append_unique serve_options '__custom__' "$(msg init_serve_option_custom_label)" "$(msg init_serve_option_custom_hint)"
+
+  local default_serve_index
+  if [ "$serve_enabled_default" -eq 0 ]; then
+    default_serve_index=$(init_option_find_index serve_options '__skip__')
+  else
+    local desired_serve_command=""
+    if [ "$created" -eq 0 ] && [ -n "$serve_command_default" ]; then
+      desired_serve_command="$serve_command_default"
+    elif [ -n "$serve_command_inferred" ]; then
+      desired_serve_command="$serve_command_inferred"
+    elif [ -n "$serve_command_default" ]; then
+      desired_serve_command="$serve_command_default"
+    elif [ ${#serve_options[@]} -gt 0 ]; then
+      desired_serve_command=$(init_option_extract_value "${serve_options[0]}")
+    fi
+
+    default_serve_index=-1
+    if [ -n "$desired_serve_command" ]; then
+      default_serve_index=$(init_option_find_index serve_options "$desired_serve_command")
+    fi
+
+    if [ "$default_serve_index" -lt 0 ]; then
+      default_serve_index=$(init_option_find_index serve_options '__skip__')
+    fi
+  fi
+
+  if [ "$default_serve_index" -lt 0 ]; then
+    default_serve_index=0
+  fi
+
+  default_serve_index=$(init_option_focus_default serve_options "$default_serve_index")
+
+  local serve_selection
+  if ! serve_selection=$(prompt_choice "$(msg init_prompt_serve_command)" "$default_serve_index" "${serve_options[@]}"); then
+    PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+    die "$(msg aborted)"
+  fi
+
+  local serve_enabled
+  local serve_command
+  if [ "$serve_selection" = "__skip__" ]; then
+    serve_enabled=0
+    serve_command=""
+  elif [ "$serve_selection" = "__custom__" ]; then
+    serve_enabled=1
+    if ! serve_command=$(prompt_input_text "$(msg init_prompt_serve_custom)" "$serve_command_default" 1); then
+      PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+      die "$(msg aborted)"
+    fi
+    serve_command=$(prompt_trim_spaces "$serve_command")
+  else
+    serve_enabled=1
+    serve_command="$serve_selection"
+  fi
+
+  local serve_logging_path="$serve_logging_path_default"
+  if [ "$serve_enabled" -ne 0 ]; then
+    if ! serve_logging_path=$(prompt_input_text "$(msg init_prompt_serve_logging_path)" "$serve_logging_path_default" 1); then
+      PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+      die "$(msg aborted)"
+    fi
+    serve_logging_path=$(prompt_trim_spaces "$serve_logging_path")
+    case "$serve_logging_path" in
+    none | None | NONE | 无)
+      serve_logging_path=""
+      ;;
+    esac
+  else
+    local logging_display
+    if [ -n "$serve_logging_path_default" ]; then
+      logging_display=$(prompt_style_gray "$serve_logging_path_default")
+    else
+      logging_display=$(prompt_style_gray "$(msg prompt_empty_display)")
+    fi
+    prompt_success_line "$(msg init_prompt_serve_logging_path)" "$logging_display"
+  fi
+
+  local -a branch_options=()
+  if [ -n "$branch_prefix_default" ]; then
+    init_option_append_unique branch_options "$branch_prefix_default" "$branch_prefix_default" "$(msg init_branch_option_current_hint)"
+  fi
+  init_option_append_unique branch_options "$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX" "$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX" "$(msg init_branch_option_default_hint)"
+  local branch_fallback
+  for branch_fallback in "${CONFIG_BRANCH_PREFIX_FALLBACKS[@]}"; do
+    init_option_append_unique branch_options "$branch_fallback" "$branch_fallback" "$(msg init_branch_option_alternative_hint)"
+  done
+
+  init_option_append_unique branch_options '__skip__' "$(msg init_branch_option_skip_label)" "$(msg init_branch_option_skip_hint)"
+  init_option_append_unique branch_options '__custom__' "$(msg init_branch_option_custom_label)" "$(msg init_branch_option_custom_hint)"
+
+  local branch_default_index
+  branch_default_index=$(init_option_find_index branch_options "$branch_prefix_default")
+  if [ "$branch_default_index" -lt 0 ]; then
+    branch_default_index=$(init_option_find_index branch_options "$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX")
+  fi
+  if [ "$branch_default_index" -lt 0 ]; then
+    branch_default_index=0
+  fi
+  branch_default_index=$(init_option_focus_default branch_options "$branch_default_index")
+
+  local branch_selection
+  if ! branch_selection=$(prompt_choice "$(msg init_prompt_branch_prefix)" "$branch_default_index" "${branch_options[@]}"); then
+    PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+    die "$(msg aborted)"
+  fi
+
+  local branch_prefix_value="$branch_prefix_default"
+  case "$branch_selection" in
+  __skip__)
+    :
+    ;;
+  __custom__)
+    if ! branch_prefix_value=$(prompt_input_text "$(msg init_prompt_branch_custom)" "$branch_prefix_default" 1); then
+      PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+      die "$(msg aborted)"
+    fi
+    branch_prefix_value=$(prompt_trim_spaces "$branch_prefix_value")
+    ;;
+  *)
+    branch_prefix_value="$branch_selection"
+    ;;
+  esac
+
+  branch_prefix_value=$(prompt_trim_spaces "$branch_prefix_value")
+  branch_prefix_value="$(normalize_branch_prefix_value "$branch_prefix_value")"
+
+  PROMPT_ASSUME_DEFAULTS="$previous_prompt_assume"
+
+  local copy_env_enabled_str
+  local install_enabled_str
+  local serve_enabled_str
+  local copy_env_json
+
+  copy_env_enabled_str=$(config_bool_to_string "$copy_env_choice")
+  install_enabled_str=$(config_bool_to_string "$install_enabled")
+  serve_enabled_str=$(config_bool_to_string "$serve_enabled")
+  copy_env_json=$(json_array_from_list "${copy_env_files[@]}")
+
+  config_set_in_file "$target_file" "repo.path" "$repo_path_selected"
+  config_set_in_file "$target_file" "add.branch-prefix" "$branch_prefix_value"
+  config_set_in_file "$target_file" "add.copy-env.enabled" "$copy_env_enabled_str"
+  config_set_in_file "$target_file" "add.copy-env.files" "$copy_env_json"
+  config_set_in_file "$target_file" "add.install-deps.enabled" "$install_enabled_str"
+  config_set_in_file "$target_file" "add.install-deps.command" "$install_command"
+  config_set_in_file "$target_file" "add.serve-dev.enabled" "$serve_enabled_str"
+  config_set_in_file "$target_file" "add.serve-dev.command" "$serve_command"
+  config_set_in_file "$target_file" "add.serve-dev.logging-path" "$serve_logging_path"
+
+  info "$(msg init_set_project "$repo_path_selected")"
 
   if [ -n "$branch_option" ]; then
     info "$(msg init_branch_option_deprecated "$branch_option")"
