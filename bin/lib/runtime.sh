@@ -48,6 +48,7 @@ COPY_ENV_FILE_SELECTION=()
 readonly MESSAGES_FILE="$SCRIPT_DIR/messages.sh"
 MESSAGES_LOADED=0
 AUTO_CD_HINT_SHOWN=0
+LIST_PRIMARY_WORKTREE_PATH=""
 
 ensure_messages_loaded() {
   if [ "$MESSAGES_LOADED" = "1" ]; then
@@ -2770,9 +2771,14 @@ cmd_list() {
   header_line=$(msg list_global_project_header "$display_name" "$repo_path" "$branch" "$head_short")
   info "$(format_bold_line "$header_line")"
 
+  local _prev_primary="$LIST_PRIMARY_WORKTREE_PATH"
+  LIST_PRIMARY_WORKTREE_PATH="$repo_path"
+
   if ! project_print_worktrees "$repo_path"; then
     info "$(msg git_command_failed "$repo_path")"
   fi
+
+  LIST_PRIMARY_WORKTREE_PATH="$_prev_primary"
 }
 
 project_emit_worktree_entry() {
@@ -2840,7 +2846,7 @@ project_emit_worktree_entry() {
     entry_line=$(msg list_global_worktree_entry "$branch_display" "$head_short" "$path")
   fi
 
-  if [ "$branch_display" = "main" ]; then
+  if [ -n "${LIST_PRIMARY_WORKTREE_PATH:-}" ] && [ "$path" = "$LIST_PRIMARY_WORKTREE_PATH" ]; then
     info "$(format_cyan_bold_line "$entry_line")"
   else
     info "$entry_line"
@@ -2921,9 +2927,14 @@ cmd_list_global() {
     if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
       info "$(msg project_path_missing "$display_name")"
     else
+      local _prev_primary="$LIST_PRIMARY_WORKTREE_PATH"
+      LIST_PRIMARY_WORKTREE_PATH="$repo_path"
+
       if ! project_print_worktrees "$repo_path"; then
         info "$(msg git_command_failed "$repo_path")"
       fi
+
+      LIST_PRIMARY_WORKTREE_PATH="$_prev_primary"
     fi
 
     idx=$((idx + 1))
