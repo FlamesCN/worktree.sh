@@ -103,8 +103,8 @@ msg_en() {
   init_set_project)
     printf 'wt init completed successfully.\n\nCaptured defaults:\n  repo.path   → \033[1m%s\033[0m\n' "$1"
     ;;
-  init_set_branch)
-    printf '  repo.branch → \033[1m%s\033[0m\n' "$1"
+  init_branch_option_deprecated)
+    printf '  repo.branch has been removed; ignoring requested branch "%s"\n' "$1"
     ;;
   init_slug_failed)
     printf 'failed to derive project slug from the current repository'
@@ -162,6 +162,12 @@ msg_en() {
     ;;
   merge_cleanup_hint)
     printf '🧹 Consider cleaning up the worktree with: wt rm %s' "$1"
+    ;;
+  project_branch_required)
+    printf 'main workspace is on a detached HEAD; checkout a branch and retry'
+    ;;
+  project_directory_required)
+    printf 'run this command from %s or one of its subdirectories' "$1"
     ;;
   sync_requires_target)
     printf 'sync requires "all" or one or more worktree names'
@@ -645,8 +651,8 @@ msg_zh() {
   init_set_project)
     printf 'wt init 已完成。\n\n捕获的默认值：\n  repo.path   → \033[1m%s\033[0m\n' "$1"
     ;;
-  init_set_branch)
-    printf '  repo.branch → \033[1m%s\033[0m\n' "$1"
+  init_branch_option_deprecated)
+    printf '  repo.branch 已移除；忽略传入的分支 "%s"\n' "$1"
     ;;
   init_slug_failed)
     printf '无法从当前仓库解析项目 slug'
@@ -701,6 +707,12 @@ msg_zh() {
     ;;
   merge_cleanup_hint)
     printf '🧹 如需清理请运行：wt rm %s' "$1"
+    ;;
+  project_branch_required)
+    printf '主仓当前处于游离 HEAD，请先切换到具名分支后重试'
+    ;;
+  project_directory_required)
+    printf '请在 %s 或其任意子目录运行该命令' "$1"
     ;;
   sync_requires_target)
     printf 'sync 需要传入 "all" 或至少一个 worktree 名称'

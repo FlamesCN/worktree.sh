@@ -577,35 +577,33 @@ REINSTALL_USAGE_EN
 }
 
 cmd_init() {
-  local branch=""
+  local branch_option=""
   while [ $# -gt 0 ]; do
     case "$1" in
     --branch | branch)
       shift || die "$(msg branch_requires_value)"
-      branch="$1"
+      branch_option="$1"
       ;;
     --help | help)
       case "$LANGUAGE" in
       zh)
         cat << 'INIT_USAGE_ZH'
 wt init 用法:
-  wt init [branch <name>]
+  wt init
 
 请在目标仓库运行：
 - 创建 ~/.worktree.sh/projects/<slug>/config.kv（如不存在）。
 - 设置 repo.path 为仓库根目录（根据 git common dir 推导）。
-- 提供 branch <name> 时设置 repo.branch（默认使用当前分支）。
 INIT_USAGE_ZH
         ;;
       *)
         cat << 'INIT_USAGE_EN'
 wt init usage:
-  wt init [branch <name>]
+  wt init
 
 Run inside the target repository:
 - Create ~/.worktree.sh/projects/<slug>/config.kv when missing.
 - Set repo.path to the repository root (derived from git common dir).
-- Optionally set repo.branch (defaults to current branch).
 INIT_USAGE_EN
         ;;
       esac
@@ -668,19 +666,8 @@ INIT_USAGE_EN
   config_set_in_file "$target_file" "repo.path" "$repo_root_abs"
   info "$(msg init_set_project "$repo_root_abs")"
 
-  if [ -z "$branch" ]; then
-    local repo_current_branch=""
-    repo_current_branch=$(git -C "$repo_root_abs" symbolic-ref --quiet --short HEAD 2> /dev/null || true)
-    if [ -n "$repo_current_branch" ]; then
-      branch="$repo_current_branch"
-    else
-      branch=$(git symbolic-ref --quiet --short HEAD 2> /dev/null || true)
-    fi
-  fi
-
-  if [ -n "$branch" ]; then
-    config_set_in_file "$target_file" "repo.branch" "$branch"
-    info "$(msg init_set_branch "$branch")"
+  if [ -n "$branch_option" ]; then
+    info "$(msg init_branch_option_deprecated "$branch_option")"
   fi
 
   if [ "$created" -eq 1 ]; then
@@ -757,30 +744,16 @@ cmd_merge() {
   local branch
   branch=$(branch_for "$name")
 
+  ensure_within_project_directory
+
   local current_branch
-  current_branch=$(git_project symbolic-ref --quiet --short HEAD 2> /dev/null || true)
-
-  local base_branch="$WORKING_REPO_BRANCH"
-  if [ -z "$base_branch" ]; then
-    base_branch=$(detect_repo_default_branch "$current_branch")
+  if current_branch=$(project_current_branch 2> /dev/null); then
+    :
+  else
+    die "$(msg project_branch_required)"
   fi
 
-  local current_display="$current_branch"
-  if [ -z "$current_display" ]; then
-    current_display='(detached)'
-  fi
-
-  if [ -z "$base_branch" ]; then
-    die "$(msg merge_main_only main "$current_display")"
-  fi
-
-  if [ "$current_display" = '(detached)' ]; then
-    die "$(msg merge_main_only "$base_branch" "$current_display")"
-  fi
-
-  if [ "$current_branch" != "$base_branch" ]; then
-    die "$(msg merge_main_only "$base_branch" "$current_branch")"
-  fi
+  local base_branch="$current_branch"
 
   if [ -n "$(git_project status --porcelain)" ]; then
     die "$(msg merge_base_dirty)"
@@ -847,20 +820,16 @@ cmd_sync() {
     die "$(msg sync_requires_target)"
   fi
 
-  local base_branch="$WORKING_REPO_BRANCH"
   local current_branch=""
-  current_branch=$(git_project symbolic-ref --quiet --short HEAD 2> /dev/null || true)
-
-  if [ -z "$base_branch" ]; then
-    base_branch=$(detect_repo_default_branch "$current_branch")
+  if ! current_branch=$(project_current_branch 2> /dev/null); then
+    die "$(msg project_branch_required)"
   fi
 
-  if [ -z "$base_branch" ]; then
-    die "$(msg merge_main_only main "${current_branch:-'(detached)'}")"
-  fi
+  local base_branch=""
+  base_branch=$(detect_repo_default_branch "$current_branch")
 
-  if [ -z "$current_branch" ]; then
-    die "$(msg merge_main_only "$base_branch" "(detached)")"
+  if [ -z "$base_branch" ]; then
+    die "$(msg merge_main_only main "$current_branch")"
   fi
 
   if [ "$current_branch" != "$base_branch" ]; then
@@ -1377,9 +1346,7 @@ cmd_clean_global() {
     local suffix="${candidate_suffix[$idx]}"
 
     local branch_name=""
-    if branch_name=$(worktree_branch_for_path_in_repo "$repo_path" "$wt_path" 2> /dev/null); then
-      branch_name="$branch_name"
-    else
+    if ! branch_name=$(worktree_branch_for_path_in_repo "$repo_path" "$wt_path" 2> /dev/null); then
       branch_name=""
     fi
 

@@ -24,6 +24,11 @@
 | `wt uninstall`          | 卸载并删除配置文件以及 shell hook                                              | 卸载并删除配置文件以及 shell hook                                  |
 | `wt reinstall`          | 重新安装                                                                       | 重新安装                                                           |
 
+备注：
+
+- **位于项目目录**: 指识别到 `~/.worktree.sh/projects/<slug>/config.kv` 并且 `repo.path` 匹配当前路径的目录，或其任意子目录。
+- **auto-cd**: 需配合 `wt shell-hook` 使用，命令输出路径后自动 `cd`。
+
 ## 详细说明
 
 ### `wt help`
@@ -36,9 +41,9 @@
 ### `wt init`
 
 - **定位**: 需在目标 Git 仓库内执行，且仓库必须位于非 `$HOME` 根目录。
-- **语法**: `wt init [branch <name>]` 或 `wt init [--branch <name>]`。
-- **行为**: 解析仓库根路径，生成项目 slug，在 `~/.worktree.sh/projects/<slug>/config.kv` 写入 `repo.path` 及可选 `repo.branch`，并加载默认模板 `config-example.kv`。
-- **注意**: 若 slug 对应的配置已存在且 `repo.path` 不匹配会拒绝覆盖；git 仓库缺失时直接报错；成功后刷新进程内的项目上下文。
+- **语法**: `wt init`。
+- **行为**: 解析仓库根路径，生成项目 slug，在 `~/.worktree.sh/projects/<slug>/config.kv` 写入 `repo.path`，并加载默认模板 `config-example.kv`。
+- **注意**: 若 slug 对应的配置已存在且 `repo.path` 不匹配会拒绝覆盖；git 仓库缺失时直接报错；成功后刷新进程内的项目上下文；旧版的 `branch <name>` 参数现已移除，如仍传入会被忽略并打印提示。
 
 ### `wt main`
 
@@ -63,11 +68,11 @@
 
 ### `wt add <name>`
 
-- **定位**: 仅在项目目录或其任意工作树中可执行。
+- **定位**: 仅在主仓根目录或其任意子目录可执行。
 - **语法**: `wt add <name>`。
-- **行为**: 校验名称合法性 → 创建 `${WORKTREE_NAME_PREFIX}<name>` 目录和对应分支（默认 `add.branch-prefix`，缺省 `feat/`）→ 按配置复制环境文件、安装依赖并尝试启动开发服务。
+- **行为**: 校验名称合法性 → 以主仓当前检出的分支作为基线，创建 `${WORKTREE_NAME_PREFIX}<name>` 目录和对应分支（默认 `add.branch-prefix`，缺省 `feat/`）→ 按配置复制环境文件、安装依赖并尝试启动开发服务。
 - **配置项**: `add.copy-env.*` 控制复制文件，`add.install-deps.*` 控制依赖安装，`add.serve-dev.*` 控制 dev server；`wt config` 支持逐项目自定义。
-- **注意**: 目标目录存在、名称格式非法或 git 分支冲突时会终止；无法推断可用端口或命令时会跳过并给出提示。
+- **注意**: 若主仓处于 detached HEAD 会直接报错；目标目录存在、名称格式非法或 git 分支冲突时会终止；无法推断可用端口或命令时会跳过并给出提示。
 - **结果**: 成功后输出新工作树路径并触发 auto-cd 提示。
 
 ### `wt rm` / `wt rm <name>`
@@ -86,11 +91,11 @@
 
 ### `wt merge <name>`
 
-- **定位**: 仅在主仓工作目录执行。
+- **定位**: 仅在主仓根目录或其任意子目录执行。
 - **语法**: `wt merge <worktree>`。
-- **前置条件**: 当前分支必须等于配置的基准分支（`repo.branch` 或自动推断），工作树及目标分支需完全干净，无未跟踪文件。
-- **行为**: 计算 `branch_for(<name>)`，如果存在可合并提交则运行 `git merge --no-edit` 将其合入基准分支；合并成功后提示可删除对应工作树。
-- **注意**: 若 `branch` 与基准分支相同或不存在、合并冲突、主仓脏都会报错并（如有需要）执行 `git merge --abort` 回滚。
+- **前置条件**: 主仓必须位于具名分支（非 detached HEAD），且当前分支即为合并目标分支；主仓与目标工作树都需保持干净状态。
+- **行为**: 计算 `branch_for(<name>)`，当有提交领先当前分支时执行 `git merge --no-edit` 将其合入；合并成功后提示可删除对应工作树。
+- **注意**: 若 `branch` 与当前分支相同或不存在、合并冲突、任一工作区脏都会报错并（如有需要）执行 `git merge --abort` 回滚。
 
 ### `wt sync`
 
@@ -104,7 +109,7 @@
 - **定位**: `get/list` 任何上下文均可；`set/unset` 需识别到项目并且未通过 `WT_CONFIG_FILE` 强制覆盖。
 - **语法**: `wt config list`、`wt config get <key> [--stored]`、`wt config set <key> <value>`、`wt config unset <key>`；也支持 `wt config <key>`（读取）和 `wt config <key> <value>`（写入）。
 - **行为**: 读取顺序为内置默认 → 全局模板 `config.kv` → 项目配置；写入仅触及当前项目文件。
-- **常用键**: `language`、`repo.branch`、`add.branch-prefix`、`add.copy-env.*`、`add.install-deps.*`、`add.serve-dev.*`、`add.serve-dev.logging-path` 等，详见 `config-example.kv`。
+- **常用键**: `language`、`add.branch-prefix`、`add.copy-env.*`、`add.install-deps.*`、`add.serve-dev.*`、`add.serve-dev.logging-path` 等，详见 `config-example.kv`（旧版的 `repo.branch` 已移除）。
 - **注意**: 写入 `language` 时会校验合法值；`--stored` 仅返回配置文件值而不包含默认值；未识别到项目时写操作会直接报错。
 
 ### `wt detach`

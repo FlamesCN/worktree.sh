@@ -80,7 +80,7 @@
 | `wt rm franxx-store-report` | ✅ | Removed worktree and branch cleanup succeeded.
 | `wt clean` | ✅ | Reported no numeric worktrees to remove.
 | `wt config repo.path` (shortcut) | ✅ | Returned stored path via implicit `get`.
-| `wt config --stored repo.branch` | ✅ | Returned `main`.
+| `wt config --stored repo.branch` | ➖ | Deprecated; now exits 1 with `wt: config key not found: repo.branch` after cleanup.
 | `wt config set add.install-deps.enabled true` | ✅ | Restored original setting.
 | `wt config set add.serve-dev.enabled true` | ✅ | Restored original setting.
 | `wt config list` (final) | ✅ | Confirmed defaults restored; no stray overrides.

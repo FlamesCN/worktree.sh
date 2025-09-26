@@ -33,7 +33,6 @@ readonly -a CONFIG_BRANCH_PREFIX_FALLBACKS=("feature/" "ft/")
 WORKING_REPO_PATH=""
 WORKTREE_NAME_PREFIX=""
 WORKTREE_BRANCH_PREFIX=""
-WORKING_REPO_BRANCH=""
 SERVE_DEV_LOGGING_PATH=""
 SERVE_DEV_ENABLED=0
 INSTALL_DEPS_ENABLED=0
@@ -1203,7 +1202,6 @@ project_registry_collect() {
   local slug=""
   local config_file=""
   local repo_path=""
-  local branch=""
 
   for slug_dir in "$CONFIG_PROJECTS_DIR"/*; do
     [ -d "$slug_dir" ] || continue
@@ -1212,7 +1210,6 @@ project_registry_collect() {
     [ -f "$config_file" ] || continue
 
     repo_path=$(config_file_get_value "$config_file" "repo.path" 2> /dev/null || true)
-    branch=$(config_file_get_value "$config_file" "repo.branch" 2> /dev/null || true)
     local branch_prefix
     branch_prefix=$(config_file_get_value "$config_file" "add.branch-prefix" 2> /dev/null || true)
     branch_prefix="$(normalize_branch_prefix_value "$branch_prefix")"
@@ -1226,7 +1223,7 @@ project_registry_collect() {
       fi
     fi
 
-    local display_branch="$branch"
+    local display_branch=""
     local head_short=""
     if [ -n "$repo_path" ] && [ -d "$repo_path" ]; then
       head_short=$(git_at_path "$repo_path" rev-parse --short HEAD 2> /dev/null || true)
@@ -1479,9 +1476,6 @@ config_default_value() {
     ;;
   repo.path)
     printf '%s\n' "$CONFIG_DEFAULT_WORKING_REPO_PATH"
-    ;;
-  repo.branch)
-    printf '\n'
     ;;
   add.branch-prefix)
     printf '%s\n' "$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
@@ -1757,10 +1751,6 @@ init_settings_apply_from_sources() {
     fi
   fi
 
-  if value=$(config_get "repo.branch" 2> /dev/null); then
-    WORKING_REPO_BRANCH="$value"
-  fi
-
   if value=$(config_get "add.branch-prefix" 2> /dev/null); then
     if [ -n "$value" ]; then
       WORKTREE_BRANCH_PREFIX="$(normalize_branch_prefix_value "$value")"
@@ -1830,7 +1820,6 @@ init_settings_defaults() {
   INSTALL_DEPS_ENABLED="$CONFIG_DEFAULT_INSTALL_DEPS_ENABLED"
   COPY_ENV_ENABLED="$CONFIG_DEFAULT_COPY_ENV_ENABLED"
   WORKTREE_BRANCH_PREFIX="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
-  WORKING_REPO_BRANCH=""
   COPY_ENV_FILE_SELECTION=("${CONFIG_DEFAULT_COPY_ENV_FILES[@]}")
   INSTALL_DEPS_COMMAND="$CONFIG_DEFAULT_INSTALL_DEPS_COMMAND"
   SERVE_DEV_COMMAND="$CONFIG_DEFAULT_SERVE_DEV_COMMAND"
@@ -2031,6 +2020,51 @@ worktree_ref_exists() {
   return 1
 }
 
+path_is_within() {
+  if [ $# -ne 2 ]; then
+    return 1
+  fi
+
+  local path="$1"
+  local root="$2"
+
+  case "$path" in
+  "$root" | "$root"/*)
+    return 0
+    ;;
+  esac
+
+  return 1
+}
+
+ensure_within_project_directory() {
+  if [ -z "$PROJECT_DIR_ABS" ]; then
+    return 1
+  fi
+
+  local current_dir
+  if ! current_dir=$(pwd -P 2> /dev/null); then
+    return 1
+  fi
+
+  if path_is_within "$current_dir" "$PROJECT_DIR_ABS"; then
+    return 0
+  fi
+
+  die "$(msg project_directory_required "$PROJECT_DIR_ABS")"
+}
+
+project_current_branch() {
+  local branch
+  branch=$(git_project symbolic-ref --quiet --short HEAD 2> /dev/null || true)
+  if [ -n "$branch" ]; then
+    printf '%s\n' "$branch"
+    return 0
+  fi
+
+  return 1
+}
+
 branch_prefix_conflict() {
   if [ $# -ne 1 ]; then
     return 1
@@ -2053,7 +2087,8 @@ branch_prefix_conflict() {
 }
 
 ensure_branch_prefix_for_add() {
-  local original="$(normalize_branch_prefix_value "$WORKTREE_BRANCH_PREFIX")"
+  local original
+  original="$(normalize_branch_prefix_value "$WORKTREE_BRANCH_PREFIX")"
   if [ -z "$original" ]; then
     original="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
   fi
@@ -3030,6 +3065,8 @@ cmd_add() {
     die "$(msg invalid_worktree_name "$name")"
   fi
 
+  ensure_within_project_directory
+
   local run_install="$INSTALL_DEPS_ENABLED"
   local run_dev="$SERVE_DEV_ENABLED"
   local copy_env="$COPY_ENV_ENABLED"
@@ -3040,7 +3077,14 @@ cmd_add() {
   local skip_dev=0
   local skip_dev_port=""
   local skip_dev_reason=""
-  local base_branch="$WORKING_REPO_BRANCH"
+  local base_branch=""
+  if base_branch=$(project_current_branch 2> /dev/null); then
+    :
+  fi
+
+  if [ -z "$base_branch" ]; then
+    die "$(msg project_branch_required)"
+  fi
 
   if [[ "$name" =~ ^[0-9]+$ ]]; then
     numeric_name="$name"
@@ -3111,11 +3155,7 @@ cmd_add() {
   fi
 
   info "$(msg creating_worktree "$worktree_path" "$branch")"
-  if [ -n "$base_branch" ]; then
-    git_project worktree add -b "$branch" "$worktree_path" "$base_branch" >&2
-  else
-    git_project worktree add -b "$branch" "$worktree_path" >&2
-  fi
+  git_project worktree add -b "$branch" "$worktree_path" "$base_branch" >&2
   info "$(msg worktree_created)"
 
   if [ "$copy_env" -eq 1 ]; then
@@ -3216,7 +3256,6 @@ wt config - 查看或更新 worktree.sh 配置
 支持的键:
   language                        CLI 显示语言（en|zh，默认 en）
   repo.path                       默认维护的仓库根目录（由 wt init 设置）
-  repo.branch                     新 worktree 的默认分支（可选）
   add.branch-prefix               新 worktree 分支名前缀（默认 feat/，若已存在同名分支会依次回退到 feature/、ft/）
   add.copy-env.enabled            是否在 wt add 时复制环境文件
   add.copy-env.files              被复制的环境文件列表（JSON 数组）
@@ -3249,7 +3288,6 @@ Shortcuts:
 Supported keys:
   language                        CLI language (en or zh; default: en)
   repo.path                       Root directory of the tracked repository (set by wt init)
-  repo.branch                     Default branch for new worktrees (optional)
   add.branch-prefix               Branch name prefix used for new worktrees (default: feat/; falls back to feature/ then ft/ when conflicts exist)
   add.copy-env.enabled            Whether wt add copies environment files
   add.copy-env.files              Environment files to copy (JSON array)
