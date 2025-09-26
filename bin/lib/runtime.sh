@@ -28,6 +28,7 @@ readonly CONFIG_DEFAULT_INSTALL_DEPS_COMMAND=""
 readonly CONFIG_DEFAULT_SERVE_DEV_COMMAND=""
 readonly CONFIG_DEFAULT_LANGUAGE="en"
 readonly -a CONFIG_DEFAULT_COPY_ENV_FILES=(".env" ".env.local")
+readonly -a CONFIG_BRANCH_PREFIX_FALLBACKS=("feature/" "ft/")
 
 WORKING_REPO_PATH=""
 WORKTREE_NAME_PREFIX=""
@@ -100,6 +101,20 @@ language_code_to_config_value() {
     printf '%s\n' "${1:-}"
     ;;
   esac
+}
+
+normalize_branch_prefix_value() {
+  local value="${1:-}"
+  if [ -z "$value" ]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+
+  if [[ "$value" != */ ]]; then
+    value="${value}/"
+  fi
+
+  printf '%s\n' "$value"
 }
 
 init_language() {
@@ -406,12 +421,14 @@ WORKTREE_SELECTION_INDEX=-1
 MATCH_WORKTREE_NAMES=()
 MATCH_WORKTREE_PATHS=()
 MATCH_WORKTREE_PROJECTS=()
+MATCH_WORKTREE_BRANCHES=()
 MATCH_WORKTREE_COUNT=0
 
 worktree_match_reset() {
   MATCH_WORKTREE_NAMES=()
   MATCH_WORKTREE_PATHS=()
   MATCH_WORKTREE_PROJECTS=()
+  MATCH_WORKTREE_BRANCHES=()
   WORKTREE_SELECTION_INDEX=-1
   MATCH_WORKTREE_COUNT=0
 }
@@ -753,27 +770,76 @@ collect_global_worktree_matches() {
     fi
 
     local current_path=""
+    local current_branch=""
+    local line=""
     while IFS= read -r line || [ -n "$line" ]; do
       case "$line" in
       worktree\ *)
-        current_path="${line#worktree }"
-        local base
-        base=$(basename "$current_path")
-        local candidate=""
-        if [ -n "$prefix" ] && [[ "$base" == "$prefix"* ]]; then
-          candidate="${base#"$prefix"}"
-        elif [ "$base" = "$target_name" ]; then
-          candidate="$base"
-        fi
+        if [ -n "$current_path" ]; then
+          local base_prev
+          base_prev=$(basename "$current_path")
+          local candidate_prev=""
+          if [ -n "$prefix" ] && [[ "$base_prev" == "$prefix"* ]]; then
+            candidate_prev="${base_prev#"$prefix"}"
+          elif [ "$base_prev" = "$target_name" ]; then
+            candidate_prev="$base_prev"
+          fi
 
-        if [ -n "$candidate" ] && [ "$candidate" = "$target_name" ]; then
-          MATCH_WORKTREE_NAMES+=("$candidate")
-          MATCH_WORKTREE_PATHS+=("$current_path")
-          MATCH_WORKTREE_PROJECTS+=("$idx")
+          if [ -n "$candidate_prev" ] && [ "$candidate_prev" = "$target_name" ]; then
+            MATCH_WORKTREE_NAMES+=("$candidate_prev")
+            MATCH_WORKTREE_PATHS+=("$current_path")
+            MATCH_WORKTREE_PROJECTS+=("$idx")
+            MATCH_WORKTREE_BRANCHES+=("$current_branch")
+          fi
         fi
+        current_path="${line#worktree }"
+        current_branch=""
+        ;;
+      branch\ *)
+        current_branch="${line#branch }"
+        current_branch="${current_branch#refs/heads/}"
+        ;;
+      "")
+        if [ -n "$current_path" ]; then
+          local base
+          base=$(basename "$current_path")
+          local candidate=""
+          if [ -n "$prefix" ] && [[ "$base" == "$prefix"* ]]; then
+            candidate="${base#"$prefix"}"
+          elif [ "$base" = "$target_name" ]; then
+            candidate="$base"
+          fi
+
+          if [ -n "$candidate" ] && [ "$candidate" = "$target_name" ]; then
+            MATCH_WORKTREE_NAMES+=("$candidate")
+            MATCH_WORKTREE_PATHS+=("$current_path")
+            MATCH_WORKTREE_PROJECTS+=("$idx")
+            MATCH_WORKTREE_BRANCHES+=("$current_branch")
+          fi
+        fi
+        current_path=""
+        current_branch=""
         ;;
       esac
     done < <(git_at_path "$repo_path" worktree list --porcelain 2> /dev/null || true)
+
+    if [ -n "$current_path" ]; then
+      local base
+      base=$(basename "$current_path")
+      local candidate=""
+      if [ -n "$prefix" ] && [[ "$base" == "$prefix"* ]]; then
+        candidate="${base#"$prefix"}"
+      elif [ "$base" = "$target_name" ]; then
+        candidate="$base"
+      fi
+
+      if [ -n "$candidate" ] && [ "$candidate" = "$target_name" ]; then
+        MATCH_WORKTREE_NAMES+=("$candidate")
+        MATCH_WORKTREE_PATHS+=("$current_path")
+        MATCH_WORKTREE_PROJECTS+=("$idx")
+        MATCH_WORKTREE_BRANCHES+=("$current_branch")
+      fi
+    fi
 
     idx=$((idx + 1))
   done
@@ -835,6 +901,7 @@ project_worktrees_for_slug() {
 
   local branch_prefix
   branch_prefix=$(config_file_get_value "$config_file" "add.branch-prefix" 2> /dev/null || true)
+  branch_prefix="$(normalize_branch_prefix_value "$branch_prefix")"
   if [ -z "$branch_prefix" ]; then
     branch_prefix="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
   fi
@@ -1147,6 +1214,7 @@ project_registry_collect() {
     branch=$(config_file_get_value "$config_file" "repo.branch" 2> /dev/null || true)
     local branch_prefix
     branch_prefix=$(config_file_get_value "$config_file" "add.branch-prefix" 2> /dev/null || true)
+    branch_prefix="$(normalize_branch_prefix_value "$branch_prefix")"
 
     local dir_prefix=""
     if [ -n "$repo_path" ]; then
@@ -1693,7 +1761,9 @@ init_settings_apply_from_sources() {
   fi
 
   if value=$(config_get "add.branch-prefix" 2> /dev/null); then
-    [ -n "$value" ] && WORKTREE_BRANCH_PREFIX="$value"
+    if [ -n "$value" ]; then
+      WORKTREE_BRANCH_PREFIX="$(normalize_branch_prefix_value "$value")"
+    fi
   fi
 
   if value=$(config_get "add.serve-dev.logging-path" 2> /dev/null); then
@@ -1960,8 +2030,164 @@ worktree_ref_exists() {
   return 1
 }
 
+branch_prefix_conflict() {
+  if [ $# -ne 1 ]; then
+    return 1
+  fi
+
+  local prefix="$1"
+  local base="${prefix%/}"
+
+  if [ -z "$base" ]; then
+    printf 'invalid\n'
+    return 0
+  fi
+
+  if git_project show-ref --verify --quiet "refs/heads/$base"; then
+    printf '%s\n' "$base"
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_branch_prefix_for_add() {
+  local original="$(normalize_branch_prefix_value "$WORKTREE_BRANCH_PREFIX")"
+  if [ -z "$original" ]; then
+    original="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
+  fi
+
+  local -a candidates=("$original")
+  local fallback=""
+  for fallback in "${CONFIG_BRANCH_PREFIX_FALLBACKS[@]}"; do
+    fallback="$(normalize_branch_prefix_value "$fallback")"
+    if [ -z "$fallback" ]; then
+      continue
+    fi
+    local duplicate=0
+    local existing=""
+    for existing in "${candidates[@]}"; do
+      if [ "$existing" = "$fallback" ]; then
+        duplicate=1
+        break
+      fi
+    done
+    if [ "$duplicate" -eq 0 ]; then
+      candidates+=("$fallback")
+    fi
+  done
+
+  local candidate=""
+  local conflict_reason=""
+  local conflict_hint=""
+  for candidate in "${candidates[@]}"; do
+    if conflict_reason=$(branch_prefix_conflict "$candidate" 2> /dev/null); then
+      if [ "$conflict_reason" != 'invalid' ]; then
+        conflict_hint="$conflict_reason"
+      fi
+      continue
+    fi
+
+    WORKTREE_BRANCH_PREFIX="$candidate"
+    if [ "$candidate" != "$original" ]; then
+      local message_hint="$conflict_hint"
+      if [ -z "$message_hint" ]; then
+        message_hint="${original%/}"
+        if [ -z "$message_hint" ]; then
+          message_hint='(empty)'
+        fi
+      fi
+      info "$(msg add_branch_prefix_fallback "$message_hint" "$candidate" "$candidate")"
+    fi
+    return 0
+  done
+
+  local failed_prefix="${original%/}"
+  if [ -z "$failed_prefix" ]; then
+    failed_prefix='(empty)'
+  fi
+  die "$(msg add_branch_prefix_exhausted "$failed_prefix")"
+}
+
+worktree_branch_for_path_in_repo() {
+  if [ $# -ne 2 ]; then
+    return 1
+  fi
+
+  local repo_path="$1"
+  local lookup_path="$2"
+
+  if [ -z "$repo_path" ] || [ -z "$lookup_path" ]; then
+    return 1
+  fi
+
+  local list_output=""
+  if ! list_output=$(git_at_path "$repo_path" worktree list --porcelain 2> /dev/null); then
+    return 1
+  fi
+
+  local line=""
+  local current_path=""
+  local current_branch=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+    worktree\ *)
+      if [ -n "$current_path" ] && [ "$current_path" = "$lookup_path" ] && [ -n "$current_branch" ]; then
+        printf '%s\n' "$current_branch"
+        return 0
+      fi
+      current_path="${line#worktree }"
+      current_branch=""
+      ;;
+    branch\ *)
+      current_branch="${line#branch }"
+      current_branch="${current_branch#refs/heads/}"
+      ;;
+    "")
+      if [ -n "$current_path" ] && [ "$current_path" = "$lookup_path" ] && [ -n "$current_branch" ]; then
+        printf '%s\n' "$current_branch"
+        return 0
+      fi
+      current_path=""
+      current_branch=""
+      ;;
+    esac
+  done <<< "$list_output"
+
+  if [ -n "$current_path" ] && [ "$current_path" = "$lookup_path" ] && [ -n "$current_branch" ]; then
+    printf '%s\n' "$current_branch"
+    return 0
+  fi
+
+  return 1
+}
+
+worktree_branch_for_path() {
+  if [ $# -ne 1 ]; then
+    return 1
+  fi
+
+  local lookup_path="$1"
+  if [ -z "$lookup_path" ]; then
+    return 1
+  fi
+
+  worktree_branch_for_path_in_repo "$PROJECT_DIR_ABS" "$lookup_path"
+}
+
 branch_for() {
   local name="$1"
+  local target_path
+  target_path=$(worktree_path_for "$name")
+
+  local branch=""
+  if branch=$(worktree_branch_for_path "$target_path" 2> /dev/null); then
+    if [ -n "$branch" ]; then
+      printf '%s\n' "$branch"
+      return 0
+    fi
+  fi
+
   printf '%s%s\n' "$WORKTREE_BRANCH_PREFIX" "$name"
 }
 
@@ -2867,6 +3093,8 @@ cmd_add() {
     die "$(msg worktree_exists "$worktree_path")"
   fi
 
+  ensure_branch_prefix_for_add
+
   if [ -z "$branch" ]; then
     branch=$(branch_for "$name")
   fi
@@ -2978,7 +3206,7 @@ wt config - 查看或更新 worktree.sh 配置
   language                        CLI 显示语言（en|zh，默认 en）
   repo.path                       默认维护的仓库根目录（由 wt init 设置）
   repo.branch                     新 worktree 的默认分支（可选）
-  add.branch-prefix               新 worktree 分支名前缀（默认 feat/）
+  add.branch-prefix               新 worktree 分支名前缀（默认 feat/，若已存在同名分支会依次回退到 feature/、ft/）
   add.copy-env.enabled            是否在 wt add 时复制环境文件
   add.copy-env.files              被复制的环境文件列表（JSON 数组）
   add.install-deps.enabled        是否在 wt add 时安装依赖
@@ -3011,7 +3239,7 @@ Supported keys:
   language                        CLI language (en or zh; default: en)
   repo.path                       Root directory of the tracked repository (set by wt init)
   repo.branch                     Default branch for new worktrees (optional)
-  add.branch-prefix               Branch name prefix used for new worktrees (default: feat/)
+  add.branch-prefix               Branch name prefix used for new worktrees (default: feat/; falls back to feature/ then ft/ when conflicts exist)
   add.copy-env.enabled            Whether wt add copies environment files
   add.copy-env.files              Environment files to copy (JSON array)
   add.install-deps.enabled        Whether wt add installs dependencies

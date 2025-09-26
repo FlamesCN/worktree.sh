@@ -116,6 +116,33 @@
   - observed: confirmation accepted from piped stdin and worktree removed successfully; exit 0
   - status: PASS
 
+## Scenario D: Branch prefix fallback when the configured prefix collides
+
+- `wt config set add.branch-prefix feature/`
+  - expected: override the default branch prefix for new worktrees
+  - observed: configuration updated in the project file; exit 0
+  - status: PASS
+- `git branch feature` (run inside `/Users/notdp/Developer/worktree.sh` main repo)
+  - expected: create a branch that will collide with the configured prefix
+  - observed: branch `feature` created; exit 0
+  - status: PASS
+- `wt add prefix-fallback`
+  - expected: CLI reports that `feature` already exists and falls back to `ft/` before creating the worktree and branch
+  - observed: warning mentions fallback to `ft/`, worktree `/Users/notdp/Developer/worktree.sh.prefix-fallback` created with branch `ft/prefix-fallback`; exit 0
+  - status: PASS
+- `wt rm prefix-fallback`
+  - expected: remove worktree and delete branch `ft/prefix-fallback`
+  - observed: removal succeeded, branch deletion logged; exit 0
+  - status: PASS
+- `git branch -D feature`
+  - expected: clean up the temporary `feature` branch
+  - observed: branch deleted; exit 0
+  - status: PASS
+- `wt config unset add.branch-prefix`
+  - expected: restore the default prefix (`feat/`)
+  - observed: key removed from the project config; exit 0
+  - status: PASS
+
 ## Cleanup
 
 - Removed temporary project config directory `~/.worktree.sh/projects/-private-var-folders-pb-76qwb4pn5z1-l3fs1xnk8l000000gn-T-tmp-g7V0WOcYkE`

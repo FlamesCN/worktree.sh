@@ -82,6 +82,12 @@ msg_en() {
   creating_worktree)
     printf '🔧 Creating worktree: %s (branch %s)' "$1" "$2"
     ;;
+  add_branch_prefix_fallback)
+    printf '⚠️  Branch "%s" already exists; using branch prefix %s for this worktree\n   Persist via: wt config set add.branch-prefix %s' "$1" "$2" "$3"
+    ;;
+  add_branch_prefix_exhausted)
+    printf 'wt add could not find a usable branch prefix (example: %s); configure add.branch-prefix and retry.' "$1"
+    ;;
   worktree_created)
     printf '✅ Worktree created'
     ;;
@@ -617,6 +623,12 @@ msg_zh() {
     ;;
   creating_worktree)
     printf '🔧 创建 worktree: %s (分支 %s)' "$1" "$2"
+    ;;
+  add_branch_prefix_fallback)
+    printf '⚠️  检测到仓库已存在分支 "%s"，本次将使用分支前缀 %s 创建 worktree\n   若需固定配置：wt config set add.branch-prefix %s' "$1" "$2" "$3"
+    ;;
+  add_branch_prefix_exhausted)
+    printf 'wt add 未能找到可用的分支前缀（例如：%s）；请手动设置 add.branch-prefix 后重试。' "$1"
     ;;
   worktree_created)
     printf '✅ worktree 创建完成'

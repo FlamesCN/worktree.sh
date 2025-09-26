@@ -714,6 +714,9 @@ remove_worktree_by_name() {
     removing_current=1
   fi
 
+  local branch=""
+  branch=$(branch_for "$name")
+
   info "$(msg removing_worktree "$target_path")"
   local removal_succeeded=0
   if git_project worktree remove "$target_path" --force >&2; then
@@ -731,9 +734,7 @@ remove_worktree_by_name() {
     die "$(msg remove_failed)"
   fi
 
-  local branch
-  branch=$(branch_for "$name")
-  if git_project show-ref --verify --quiet "refs/heads/$branch"; then
+  if [ -n "$branch" ] && git_project show-ref --verify --quiet "refs/heads/$branch"; then
     git_project branch -D "$branch" >&2 || true
     info "$(msg removed_branch "$branch")"
   fi
@@ -1134,6 +1135,7 @@ cmd_remove_global() {
       local branch_prefix="${PROJECT_REGISTRY_BRANCH_PREFIXES[$project_index]}"
       local dir_prefix="${PROJECT_REGISTRY_DIR_PREFIXES[$project_index]}"
       local target_path="${MATCH_WORKTREE_PATHS[$idx]}"
+      local branch_name="${MATCH_WORKTREE_BRANCHES[$idx]}"
 
       if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
         info "$(msg project_path_missing "$repo_slug")"
@@ -1152,12 +1154,13 @@ cmd_remove_global() {
         fi
       fi
 
-      if [ -z "$branch_prefix" ]; then
-        branch_prefix="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
-      fi
-      local branch_name=""
-      if [ -n "$branch_prefix" ]; then
-        branch_name="${branch_prefix}${name}"
+      if [ -z "$branch_name" ]; then
+        if [ -z "$branch_prefix" ]; then
+          branch_prefix="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
+        fi
+        if [ -n "$branch_prefix" ]; then
+          branch_name="${branch_prefix}${name}"
+        fi
       fi
 
       info "$(msg removing_worktree "$target_path")"
@@ -1373,6 +1376,13 @@ cmd_clean_global() {
     local wt_path="${candidate_paths[$idx]}"
     local suffix="${candidate_suffix[$idx]}"
 
+    local branch_name=""
+    if branch_name=$(worktree_branch_for_path_in_repo "$repo_path" "$wt_path" 2> /dev/null); then
+      branch_name="$branch_name"
+    else
+      branch_name=""
+    fi
+
     if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
       idx=$((idx + 1))
       continue
@@ -1391,12 +1401,15 @@ cmd_clean_global() {
 
     info "$(msg cleaning_worktree "$suffix")"
     if git_at_path "$repo_path" worktree remove "$wt_path" --force >&2; then
-      local branch_name=""
-      if [ -z "$branch_prefix" ]; then
-        branch_prefix="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
+      if [ -z "$branch_name" ]; then
+        if [ -z "$branch_prefix" ]; then
+          branch_prefix="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
+        fi
+        if [ -n "$branch_prefix" ]; then
+          branch_name="${branch_prefix}${suffix}"
+        fi
       fi
-      if [ -n "$branch_prefix" ]; then
-        branch_name="${branch_prefix}${suffix}"
+      if [ -n "$branch_name" ]; then
         git_at_path "$repo_path" branch -D "$branch_name" > /dev/null 2>&1 || true
       fi
       git_at_path "$repo_path" worktree prune --expire now >&2 || true
