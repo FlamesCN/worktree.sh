@@ -1,171 +1,203 @@
 # worktree.sh
->
-> 零摩擦的 git worktree 管理助手，让并行开发像开新标签页一样轻松。
+
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Shell](https://img.shields.io/badge/shell-bash%205%2B-green.svg)](https://www.gnu.org/software/bash/)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/notdp/worktree.sh)
+
+**零摩擦的 git worktree 管理器，为并行功能开发而生。**
 
 [English README »](README.md)
 
-worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它会自动建分支、复制环境变量、安装依赖，甚至帮你拉起开发服务器，让你直接进入编码状态。
+## worktree.sh 是什么？
 
-## 核心亮点
+worktree.sh 自动化了设置 git worktree 的繁琐步骤。通过一条命令，它就能为 Codex、Claude Code 等编码 AI 创建隔离的开发沙盒——包含分支、环境文件、依赖项和运行中的开发服务器。杜绝上下文污染。
 
-- 一条命令即可生成可立即投入开发的 worktree，自动命名分支并保持目录结构干净。
-- 使用同一套 CLI 在主仓库和功能分支沙盒之间切换，不用再记路径。
-- 可配置的 shell hook 让 `wt` 命令随处可用，并自动切换到正确目录。
-- 安全的清理工具能删除过期的 worktree 和分支，同时保留业务数据。
+### 完美适用于
 
-## 为什么你应该尝试使用 worktree
-
-- worktree 提供硬隔离的上下文——文件系统、git 历史、环境变量互不污染——主 Agent 的上下文窗口保持轻量，你也随时能插手调试，不像 Claude Code Subagent 那样不可交互。
-- 你可以给高随机性的探索留出单独 worktree——比如用 Claude Code 并行“抽卡”尝试前端 UI——同时让 Codex 处理不互斥的后端任务。
-- 随着模型逐渐走向长时运行（几分钟到数十分钟甚至更久），并行的 worktree 是在本地同时运行多个 Agent 或任务的现实方案。
-- 对单人开发者而言，可以完全在本地完成 Agent 间的协作；除非要触发 Codex Web / Codex PR Review / Claude Code PR Review 等远端服务，推送远端作为可选项。
+- **AI 驱动开发** — 为 Codex 和 Claude Code 提供隔离沙盒
+- **并行开发** — 多功能并行无需切换分支
+- **快速实验** — 安全的一次性环境
+- **代码审查** — 审查 PR 不中断主线工作
 
 ## 快速预览
 
-![多 worktree 切换演示](asset/worktree.sh.screenshot-1.png)
+![CLI overview](asset/worktree.sh.screenshot-1.png)
 
-## 快速上手
+## 快速开始
 
-1. 安装 CLI（自动检测 shell，推荐）：
-
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
-   ```
-
-2. 在你想并行开发的仓库中记录默认项目：
-
-   ```bash
-   wt init
-   ```
-
-3. 创建新的 worktree：
-
-   ```bash
-   wt add 3000
-   ```
-
-   - 在 `../project.3000` 创建目录
-   - 创建并切换到 `feat/3000`
-   - 复制 `.env.local` / `.env`
-   - 执行 `npm ci`（若缺少 Node.js lock 文件会自动跳过）
-   - 启动 `npm run dev`，端口取自名称中的数字（如 3000）
-4. 随时切换工作上下文：
-
-   ```bash
-   wt 3000    # 进入新建的沙盒
-   wt main    # 返回主仓库
-   ```
-
-5. 功能完成后（已提交）合并回主分支：
-
-   ```bash
-   wt merge 3000
-   ```
-
-   - 需要在主 worktree（通常为 main）执行，且两侧工作区必须干净。
-   - 如果没有新提交或存在未提交修改，命令会提示处理后再重试。
-
-6. 开发结束后清理：
-
-   ```bash
-   wt rm 3000
-   ```
-
-## 常用命令速查
-
-| 命令                                 | 说明                                                                          |
-| ------------------------------------ | ----------------------------------------------------------------------------- |
-| `wt list`                            | 展示当前追踪的 worktree（`git worktree list` 包装）。                         |
-| `wt add <name>`                      | 创建 worktree、分支、复制环境文件、安装依赖并启动 dev server（行为可配置）。  |
-| `wt merge <name>`                    | 将对应的特性分支（`feat/<name>`）合并回基线分支，要求两侧工作区已提交且干净。 |
-| `wt sync all` / `wt sync <name ...>` | 将主工作区的暂存改动下发到一个或多个干净的 worktree，并保持为暂存状态。       |
-| `wt <name>`                          | 直接进入指定 worktree 目录。                                                  |
-| `wt rm [name ...]`                   | 删除当前或多个指定的 worktree（默认确认，可加 `--yes` 跳过当前目录）。        |
-| `wt clean`                           | 批量清理数字命名的 worktree，并删除对应的 `feat/*` 分支。                     |
-| `wt detach [slug]`                   | 清理指定项目由 wt 创建的 worktree 并删除注册信息（加 `-y` 跳过全部确认）。    |
-| `wt main`                            | 输出主仓库路径。                                                              |
-| `wt config`                          | 检查或调整项目级行为（分支前缀、自动 dev server 等）。                        |
-| `wt lang`                            | 全局选择 CLI 语言（`wt lang`、`wt lang set en`/`zh`、`wt lang reset`）。      |
-| `wt reinstall`                       | 依次执行仓库内的 `uninstall.sh` 与 `install.sh`，重新部署 wt。                |
-| `wt uninstall`                       | 移除二进制并清理 shell hook。                                                 |
-| `wt help`                            | 查看内置命令参考。                                                            |
-
-### 同步暂存改动
-
-1. 在主工作区使用 `git add ...` 暂存需要分发的文件。
-2. 运行 `wt sync all` 下发到全部 worktree，或用 `wt sync feat1 feat2` 定位具体分支。
-3. 目标 worktree 必须保持干净；同步完成后改动会以暂存状态出现，方便直接提交。
-
-## 安装选项
-
-安装脚本会把最新的 `bin/wt` 复制到 `~/.local/bin/`，写入 shell 集成，并在路径缺失时提示补充 `PATH`。
-
-- 自动检测（推荐）：
-
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
-  ```
-
-- 指定 zsh：
-
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
-  ```
-
-- 指定 bash：
-
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell bash
-  ```
-
-安装完成后，重新加载 shell 配置（`source ~/.zshrc` 或 `source ~/.bashrc`），再在目标仓库运行 `wt init` 设置默认项目。
-
-后续如需升级，运行 `wt reinstall` 即可在仓库内串行调用 `./uninstall.sh` 与 `./install.sh`，无需额外手动步骤。
-
-重新安装是幂等操作；若未来出现破坏性变更，仍可先执行 `wt uninstall`，再用安装脚本部署。
-
-## 配置要点
-
-项目级配置存放在 `~/.worktree.sh/projects/<slug>/config.kv`，需在对应项目目录使用 `wt config set` 修改：
+### 安装
 
 ```bash
-wt config set add.serve-dev.enabled false    # 关闭自动启动 dev server
-wt config set add.install-deps.enabled true  # 确保自动安装依赖
-wt config set add.branch-prefix "feature/"   # 自定义分支前缀
-wt config list                               # 查看当前配置
+# 自动检测 shell（推荐）
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
+
+# 或明确指定 shell
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
 ```
 
-全局语言改用 `wt lang` 管理，结果写入 `~/.worktree.sh/config.kv`：
+### 基本工作流
 
 ```bash
-wt lang                # TTY 下提供菜单，非交互环境打印当前语言代码
-wt lang set zh         # 将 CLI 文案切换为中文
-wt lang reset          # 恢复默认英文
+# 1. 初始化项目（在主仓库中运行）
+wt init
+
+# 2. 为功能开发创建 worktree
+wt add 3000
+# 这会自动：
+# - 在 ../project.3000 创建 worktree
+# - 创建分支 feat/3000
+# - 复制 .env 文件
+# - 安装依赖
+# - 在端口 3000 上启动开发服务器
+
+# 3. 在 worktree 之间导航
+wt 3000    # 跳转到功能 worktree
+wt main    # 返回主仓库
+
+# 4. 准备就绪时合并（从主 worktree）
+wt merge 3000
+
+# 5. 清理
+wt rm 3000
 ```
 
-已有脚本若调用 `wt config set language ...`，会自动转发到 `wt lang`，无需改动。
+## 核心功能
 
-如需使用其它配置文件路径，可设置环境变量 `WT_CONFIG_FILE`。CLI 会直接读取该文本文件，无需额外缓存或守护进程。
+- **一键设置** — `wt add 3000` 创建 worktree、分支，复制环境文件，安装依赖，并在端口 3000 上启动开发服务器
+- **即时导航** — 使用 `wt 3000` 或 `wt main` 在 worktree 之间跳转，无需记忆路径
+- **智能同步** — 使用 `wt sync all` 将暂存的更改从主分支传播到多个 worktree
+- **安全清理** — 使用 `wt rm` 同时删除 worktree 和分支，使用 `wt clean` 批量清理
+- **完全可配置** — 按项目控制分支前缀、自动安装、开发服务器行为
 
-## 清理与卸载
+## 命令
 
-清理过期 worktree 时可连同分支一起处理：
+### 核心命令
+
+| 命令              | 描述                       | 示例            |
+| ----------------- | -------------------------- | --------------- |
+| `wt init`         | 将当前仓库初始化为默认项目 | `wt init`       |
+| `wt add <name>`   | 创建完全配置的 worktree    | `wt add 3000`   |
+| `wt <name>`       | 导航到 worktree            | `wt 3000`       |
+| `wt main`         | 返回主仓库                 | `wt main`       |
+| `wt list`         | 显示所有 worktree          | `wt list`       |
+| `wt merge <name>` | 将功能分支合并回来         | `wt merge 3000` |
+
+### 同步
+
+| 命令                 | 描述                            | 示例                |
+| -------------------- | ------------------------------- | ------------------- |
+| `wt sync all`        | 将暂存的更改同步到所有 worktree | `wt sync all`       |
+| `wt sync <names...>` | 同步到特定 worktree             | `wt sync 3000 3001` |
+
+### 清理
+
+| 命令              | 描述                  | 示例                            |
+| ----------------- | --------------------- | ------------------------------- |
+| `wt rm [name...]` | 删除 worktree         | `wt rm 3000` 或 `wt rm`（当前） |
+| `wt clean`        | 批量删除数字 worktree | `wt clean`                      |
+| `wt detach [-y]`  | 删除所有项目 worktree | `wt detach -y`                  |
+
+### 配置
+
+| 命令           | 描述                   | 示例             |
+| -------------- | ---------------------- | ---------------- |
+| `wt config`    | 查看/修改项目设置      | `wt config list` |
+| `wt lang`      | 设置 CLI 语言（en/zh） | `wt lang set zh` |
+| `wt help`      | 显示命令参考           | `wt help`        |
+| `wt reinstall` | 更新到最新版本         | `wt reinstall`   |
+| `wt uninstall` | 删除 worktree.sh       | `wt uninstall`   |
+
+## 高级功能
+
+### 跨 Worktree 广播更改
+
+将未提交的更改从主分支同时传播到多个功能分支：
 
 ```bash
-wt rm              # 提示确认后删除当前 worktree
-wt rm feat3001 feat3002    # 一次删除多个指定 worktree
-wt clean           # 批量清理所有数字命名的 worktree
-wt detach -y       # 清理当前项目的 wt 工作树并解除注册（强制模式）
+# 在主 worktree 中
+git add file1.js file2.js    # 暂存更改
+wt sync all                  # 同步到所有 worktree
+# 或同步到特定的
+wt sync 3000 3001
 ```
 
-卸载命令：
+> 注意：目标 worktree 必须具有干净状态
+
+### 自定义配置
 
 ```bash
+# 禁用自动开发服务器
+wt config set add.serve-dev.enabled false
+
+# 更改分支前缀
+wt config set add.branch-prefix "feature/"
+
+# 查看所有设置
+wt config list
+```
+
+配置按项目存储在 `~/.worktree.sh/projects/<slug>/config.kv` 中。
+
+## 使用场景
+
+### 多开 UI 抽卡
+
+```bash
+wt add ui-v1    # 第一版 UI 方案
+wt add ui-v2    # 备选设计
+wt add ui-v3    # 第三种尝试
+# 并行对比多个实现
+```
+
+### 并行代码审查
+
+```bash
+wt add review-pr-123    # 审查 PR #123
+wt add review-pr-456    # 审查 PR #456
+wt add review-pr-789    # 审查 PR #789
+# 同时处理多个 PR 审查，无需切换上下文
+```
+
+### 并行功能开发
+
+```bash
+wt add feat-auth        # 认证功能
+wt add feat-payment     # 支付集成
+wt add feat-dashboard   # 仪表板重设计
+# 并行开发多个功能
+```
+
+## 安装详情
+
+### 安装内容
+
+- 二进制文件：`~/.local/bin/wt`
+- 配置：`~/.worktree.sh/`
+- Shell 钩子：添加到 `~/.bashrc` 或 `~/.zshrc`
+
+### 要求
+
+- Bash 3.0+
+- Git 2.17+（worktree 支持）
+- macOS 或 Linux
+
+### 更新
+
+```bash
+wt reinstall    # 更新到最新版本
+```
+
+### 卸载
+
+```bash
+wt uninstall    # 或使用卸载脚本：
 curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
 ```
 
-或直接运行 `wt uninstall`，它将删除可执行文件、移除以 `# wt shell integration:` 标记的 shell hook，并把 `~/.worktree.sh` 备份到 `~/.worktree.sh.backup.<timestamp>`。
+卸载会将您的配置备份到 `~/.worktree.sh.backup.<timestamp>`。
 
 ---
 
-如果你经常同时推进多个功能分支，试试 worktree.sh：把精力留给交付，而不是重复性的环境搭建。
+**停止在分支间折腾。开始交付功能。**
+
+worktree.sh 让你的终端保持同步，让你专注于代码，而非配置。
