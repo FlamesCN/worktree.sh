@@ -1,12 +1,12 @@
 # worktree.sh
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Shell](https://img.shields.io/badge/shell-bash%205%2B-green.svg)](https://www.gnu.org/software/bash/)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/notdp/worktree.sh)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg?style=flat-square)](LICENSE)
+[![Shell](https://img.shields.io/badge/shell-bash%203.0%2B-green.svg?style=flat-square)](https://www.gnu.org/software/bash/)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg?style=flat-square)](https://github.com/notdp/worktree.sh)
 
 **Zero-friction git worktree manager for parallel feature development.**
 
-[中文文档 »](README.zh-CN.md)
+[中文](README.zh-CN.md) • [日本語](README.ja.md)
 
 ## What is worktree.sh?
 
@@ -28,11 +28,7 @@ worktree.sh automates the tedious setup of git worktrees. With a single command,
 ### Install
 
 ```bash
-# Auto-detect shell (recommended)
 curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
-
-# Or specify shell explicitly
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
 ```
 
 ### Basic Workflow

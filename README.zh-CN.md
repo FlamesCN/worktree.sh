@@ -1,12 +1,12 @@
 # worktree.sh
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Shell](https://img.shields.io/badge/shell-bash%205%2B-green.svg)](https://www.gnu.org/software/bash/)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/notdp/worktree.sh)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg?style=flat-square)](LICENSE)
+[![Shell](https://img.shields.io/badge/shell-bash%203.0%2B-green.svg?style=flat-square)](https://www.gnu.org/software/bash/)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg?style=flat-square)](https://github.com/notdp/worktree.sh)
 
 **零摩擦的 git worktree 管理器，为并行功能开发而生。**
 
-[English README »](README.md)
+[English](README.md) • [日本語](README.ja.md)
 
 ## worktree.sh 是什么？
 
@@ -28,11 +28,7 @@ worktree.sh 自动化了设置 git worktree 的繁琐步骤。通过一条命令
 ### 安装
 
 ```bash
-# 自动检测 shell（推荐）
 curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash
-
-# 或明确指定 shell
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/install.sh | bash -s -- --shell zsh
 ```
 
 ### 基本工作流
