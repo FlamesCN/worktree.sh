@@ -1,5 +1,158 @@
 # shellcheck shell=bash
 
+lang_effective_code() {
+  local code="$LANGUAGE"
+  if [ -z "$code" ]; then
+    code="$CONFIG_DEFAULT_LANGUAGE"
+  fi
+  printf '%s\n' "$code"
+}
+
+lang_display_name() {
+  local code="${1:-}"
+  case "$LANGUAGE" in
+  zh)
+    case "$code" in
+    zh)
+      printf '中文'
+      ;;
+    en)
+      printf '英文'
+      ;;
+    *)
+      printf '%s' "$code"
+      ;;
+    esac
+    ;;
+  *)
+    case "$code" in
+    zh)
+      printf 'Chinese'
+      ;;
+    en)
+      printf 'English'
+      ;;
+    *)
+      printf '%s' "$code"
+      ;;
+    esac
+    ;;
+  esac
+}
+
+lang_store_global_value() {
+  if [ $# -ne 1 ]; then
+    return 1
+  fi
+
+  local code="$1"
+  local stored
+  stored=$(language_code_to_config_value "$code")
+  config_set_in_file "$CONFIG_FILE_DEFAULT" "language" "$stored"
+  LANGUAGE="$code"
+}
+
+lang_set_global_from_raw() {
+  if [ $# -ne 1 ]; then
+    die "$(msg lang_set_requires)"
+  fi
+
+  local raw="$1"
+  local normalized
+  if ! normalized=$(normalize_language "$raw" 2> /dev/null); then
+    die "$(msg invalid_language "$raw")"
+  fi
+
+  lang_store_global_value "$normalized"
+  return 0
+}
+
+lang_reset_global() {
+  lang_store_global_value "$CONFIG_DEFAULT_LANGUAGE"
+}
+
+lang_print_current_value() {
+  lang_effective_code
+}
+
+lang_show_current_message() {
+  local code
+  code=$(lang_effective_code)
+  local label
+  label=$(lang_display_name "$code")
+  info "$(msg lang_current "$label" "$code")"
+}
+
+lang_set_with_feedback() {
+  if lang_set_global_from_raw "$1"; then
+    local code
+    code=$(lang_effective_code)
+    local label
+    label=$(lang_display_name "$code")
+    info "$(msg lang_set_success "$label" "$code")"
+  fi
+}
+
+lang_reset_with_feedback() {
+  lang_reset_global
+  local code
+  code=$(lang_effective_code)
+  local label
+  label=$(lang_display_name "$code")
+  info "$(msg lang_reset_success "$label" "$code")"
+}
+
+lang_prompt_interactive() {
+  prompt_init_ui
+  if [ "$PROMPT_HAS_TTY" -ne 1 ]; then
+    lang_print_current_value
+    return
+  fi
+
+  local -a options=()
+  options+=("$(msg lang_option_en_label)|en|$(msg lang_option_en_hint)")
+  options+=("$(msg lang_option_zh_label)|zh|$(msg lang_option_zh_hint)")
+  options+=("$(msg lang_option_reset_label)|__reset__|$(msg lang_option_reset_hint)")
+
+  local default_index=0
+  local current
+  current=$(lang_effective_code)
+  case "$current" in
+  zh)
+    default_index=1
+    ;;
+  en)
+    default_index=0
+    ;;
+  *)
+    default_index=0
+    ;;
+  esac
+
+  local previous_assume="$PROMPT_ASSUME_DEFAULTS"
+  PROMPT_ASSUME_DEFAULTS=0
+
+  local selection
+  if ! selection=$(prompt_choice "$(msg lang_prompt_select)" "$default_index" "${options[@]}"); then
+    PROMPT_ASSUME_DEFAULTS="$previous_assume"
+    die "$(msg aborted)"
+  fi
+
+  PROMPT_ASSUME_DEFAULTS="$previous_assume"
+
+  case "$selection" in
+  en | zh)
+    lang_set_with_feedback "$selection"
+    ;;
+  __reset__)
+    lang_reset_with_feedback
+    ;;
+  *)
+    die "$(msg lang_unknown_command "$selection")"
+    ;;
+  esac
+}
+
 cmd_config() {
   local scope="$CURRENT_SCOPE"
   if [ $# -eq 0 ]; then
@@ -47,6 +200,19 @@ cmd_config() {
     fi
 
     local key="$1"
+    if [ "$key" = "language" ]; then
+      if [ "$stored_only" -eq 1 ]; then
+        local stored
+        if stored=$(config_file_get_value "$CONFIG_FILE_DEFAULT" "language" 2> /dev/null); then
+          printf '%s\n' "$stored"
+        else
+          printf '%s\n' "$CONFIG_DEFAULT_LANGUAGE"
+        fi
+      else
+        lang_print_current_value
+      fi
+      return
+    fi
     local value
     if [ "$stored_only" -eq 1 ]; then
       if value=$(config_get "$key" 2> /dev/null); then
@@ -67,18 +233,15 @@ cmd_config() {
     if [ $# -ne 2 ]; then
       die "$(msg config_set_requires)"
     fi
-    if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -ne 1 ] && [ "$scope" != "project" ]; then
-      die "$(msg command_requires_project)"
-    fi
     local key="$1"
     shift
     local value="$1"
     if [ "$key" = "language" ]; then
-      if normalized=$(normalize_language "$value" 2> /dev/null); then
-        value=$(language_code_to_config_value "$normalized")
-      else
-        die "$(msg invalid_language "$value")"
-      fi
+      lang_set_global_from_raw "$value"
+      return
+    fi
+    if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -ne 1 ] && [ "$scope" != "project" ]; then
+      die "$(msg command_requires_project)"
     fi
     config_set "$key" "$value"
     ;;
@@ -87,10 +250,14 @@ cmd_config() {
     if [ $# -ne 1 ]; then
       die "$(msg config_unset_requires_exactly_one)"
     fi
+    local key="$1"
+    if [ "$key" = "language" ]; then
+      lang_reset_global
+      return
+    fi
     if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -ne 1 ] && [ "$scope" != "project" ]; then
       die "$(msg command_requires_project)"
     fi
-    local key="$1"
     config_unset "$key"
     ;;
   -h | --help | help)
@@ -108,6 +275,19 @@ cmd_config() {
 
     if [ $# -eq 1 ]; then
       local key="$1"
+      if [ "$key" = "language" ]; then
+        if [ "$stored_only" -eq 1 ]; then
+          local stored
+          if stored=$(config_file_get_value "$CONFIG_FILE_DEFAULT" "language" 2> /dev/null); then
+            printf '%s\n' "$stored"
+          else
+            printf '%s\n' "$CONFIG_DEFAULT_LANGUAGE"
+          fi
+        else
+          lang_print_current_value
+        fi
+        return
+      fi
       local value
       if [ "$stored_only" -eq 1 ]; then
         if value=$(config_get "$key" 2> /dev/null); then
@@ -126,11 +306,11 @@ cmd_config() {
       local key="$1"
       local value="$2"
       if [ "$key" = "language" ]; then
-        if normalized=$(normalize_language "$value" 2> /dev/null); then
-          value=$(language_code_to_config_value "$normalized")
-        else
-          die "$(msg invalid_language "$value")"
-        fi
+        lang_set_global_from_raw "$value"
+        return
+      fi
+      if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -ne 1 ] && [ "$scope" != "project" ]; then
+        die "$(msg command_requires_project)"
       fi
       config_set "$key" "$value"
     elif [ "$stored_only" -eq 1 ]; then
@@ -243,11 +423,49 @@ wt() {
     printf '%s\n' "$__wt_out"
   fi
 }
+
 # wt shell integration: end
 WT_HOOK
     ;;
   *)
     die "$(msg shell_hook_unsupported_shell "$shell")"
+    ;;
+  esac
+}
+
+cmd_lang() {
+  if [ $# -eq 0 ]; then
+    prompt_init_ui
+    if [ "$PROMPT_HAS_TTY" -eq 1 ]; then
+      lang_prompt_interactive
+    else
+      lang_print_current_value
+    fi
+    return
+  fi
+
+  case "$1" in
+  help | --help | -h)
+    msg lang_usage
+    ;;
+  get | --get)
+    lang_print_current_value
+    ;;
+  set | --set)
+    shift || die "$(msg lang_set_requires)"
+    if [ $# -ne 1 ]; then
+      die "$(msg lang_set_requires)"
+    fi
+    lang_set_with_feedback "$1"
+    ;;
+  reset | --reset)
+    lang_reset_with_feedback
+    ;;
+  en | zh)
+    lang_set_with_feedback "$1"
+    ;;
+  *)
+    die "$(msg lang_unknown_command "$1")"
     ;;
   esac
 }
@@ -1277,7 +1495,11 @@ INIT_USAGE_EN
     info "$(msg init_created_project "$slug" "$target_file")"
   fi
 
-  info "$(msg init_done)"
+  local init_done_message
+  init_done_message="$(msg init_done)"
+  if [ -n "$init_done_message" ]; then
+    info "$init_done_message"
+  fi
 
   project_context_reset
   project_context_detect_from_cwd || true
@@ -2041,6 +2263,10 @@ wt_main() {
   case "$command" in
   config)
     cmd_config "$@"
+    return
+    ;;
+  lang)
+    cmd_lang "$@"
     return
     ;;
   shell-hook)

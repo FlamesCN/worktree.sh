@@ -101,7 +101,7 @@ msg_en() {
     printf '✅ Worktree ready: %s' "$1"
     ;;
   init_set_project)
-    printf 'wt init completed successfully.\n\033[94;1mrepo.path\033[0m   → \033[32m%s\033[0m\n' "$1"
+    printf '\n\033[94;1m%-11s\033[0m → \033[32m%s\033[0m\n' 'repo.path' "$1"
     ;;
   init_branch_option_deprecated)
     printf '  repo.branch has been removed; ignoring requested branch "%s"\n' "$1"
@@ -113,10 +113,61 @@ msg_en() {
     printf 'existing project %s points to %s (current repo: %s); aborting' "$1" "$2" "$3"
     ;;
   init_created_project)
-    printf 'Created project config: %s (%s)' "$1" "$2"
+    printf '\033[94;1m%-11s\033[0m → \033[32m%s\033[0m\n' 'config file' "$2"
     ;;
   init_done)
-    printf ''
+    printf 'wt init completed successfully.\n'
+    ;;
+  lang_set_requires)
+    printf 'wt lang set requires exactly one argument (en or zh)'
+    ;;
+  lang_unknown_command)
+    printf 'Unknown wt lang command: %s' "$1"
+    ;;
+  lang_prompt_select)
+    printf 'Choose interface language:'
+    ;;
+  lang_option_en_label)
+    printf 'English'
+    ;;
+  lang_option_en_hint)
+    printf 'English interface'
+    ;;
+  lang_option_zh_label)
+    printf '中文 (Chinese)'
+    ;;
+  lang_option_zh_hint)
+    printf 'Chinese interface'
+    ;;
+  lang_option_reset_label)
+    printf 'Reset to default'
+    ;;
+  lang_option_reset_hint)
+    printf 'Restore English (default)'
+    ;;
+  lang_set_success)
+    printf 'Language set to %s (%s)' "$1" "$2"
+    ;;
+  lang_reset_success)
+    printf 'Language reset to %s (%s)' "$1" "$2"
+    ;;
+  lang_current)
+    printf 'Current language: %s (%s)' "$1" "$2"
+    ;;
+  lang_usage)
+    cat << 'LANG_USAGE_EN'
+wt lang - Manage worktree.sh interface language
+
+Interactive (TTY):
+  wt lang                  Choose language with arrow keys
+
+Non-interactive:
+  wt lang get              Print current language code
+  wt lang set <en|zh>      Switch language
+  wt lang reset            Reset to default (English)
+  wt lang en|zh            Shortcut for wt lang set
+  wt lang help             Show this help
+LANG_USAGE_EN
     ;;
   init_prompt_repo_path)
     printf 'Repository path for wt to track?'
@@ -799,7 +850,7 @@ msg_zh() {
     printf '✅ 新 worktree 就绪: %s' "$1"
     ;;
   init_set_project)
-    printf 'wt init 已完成。\n\033[94;1mrepo.path\033[0m   → \033[32m%s\033[0m\n' "$1"
+    printf '\n\033[94;1m%-11s\033[0m → \033[32m%s\033[0m\n' 'repo.path' "$1"
     ;;
   init_branch_option_deprecated)
     printf '  repo.branch 已移除；忽略传入的分支 "%s"\n' "$1"
@@ -810,8 +861,62 @@ msg_zh() {
   init_slug_mismatch)
     printf '已存在的项目 %s 指向 %s（当前仓库：%s），操作已中止' "$1" "$2" "$3"
     ;;
+  init_created_project)
+    printf '\033[94;1m%-11s\033[0m → \033[32m%s\033[0m\n' 'config file' "$2"
+    ;;
   init_done)
-    printf ''
+    printf 'wt init 已完成。\n'
+    ;;
+  lang_set_requires)
+    printf 'wt lang set 需要一个参数（en 或 zh）'
+    ;;
+  lang_unknown_command)
+    printf '未知 wt lang 命令：%s' "$1"
+    ;;
+  lang_prompt_select)
+    printf '选择界面语言：'
+    ;;
+  lang_option_en_label)
+    printf '英文 (English)'
+    ;;
+  lang_option_en_hint)
+    printf 'English 界面'
+    ;;
+  lang_option_zh_label)
+    printf '中文'
+    ;;
+  lang_option_zh_hint)
+    printf '中文界面'
+    ;;
+  lang_option_reset_label)
+    printf '重置为默认值'
+    ;;
+  lang_option_reset_hint)
+    printf '恢复英文（默认）'
+    ;;
+  lang_set_success)
+    printf '界面语言已切换为%s（%s）' "$1" "$2"
+    ;;
+  lang_reset_success)
+    printf '界面语言已重置为%s（%s）' "$1" "$2"
+    ;;
+  lang_current)
+    printf '当前界面语言：%s（%s）' "$1" "$2"
+    ;;
+  lang_usage)
+    cat << 'LANG_USAGE_ZH'
+wt lang - 管理 worktree.sh 界面语言
+
+交互式 (TTY):
+  wt lang                  使用方向键选择语言
+
+非交互式:
+  wt lang get              输出当前语言代码
+  wt lang set <en|zh>      切换语言
+  wt lang reset            恢复默认语言（英文）
+  wt lang en|zh            等同于 wt lang set
+  wt lang help             显示本帮助
+LANG_USAGE_ZH
     ;;
   init_prompt_repo_path)
     printf 'wt 追踪的主仓库地址?'

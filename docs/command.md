@@ -14,10 +14,11 @@
 | `wt rm <name>`          | 全局匹配逐项确认；确认后输出所选项目主仓路径（auto-cd）                        | 删除当前项目同名 worktree；若删除当前目录则返回主仓路径（auto-cd） |
 | `wt add`                | 提示需在项目内执行                                                             | 创建新 worktree 并输出新目录路径（auto-cd）                        |
 | `wt merge <name>`       | 提示需在项目内执行                                                             | 合并指定 worktree 至主仓                                           |
-| `wt config set <k> <v>` | 提示需在项目内执行                                                             | 写入当前项目的配置                                                 |
-| `wt config unset`       | 提示需在项目内执行                                                             | 从当前项目移除键                                                   |
-| `wt config get <k>`     | 读取默认/全局配置；未识别项目时仅返回默认值                                    | 读取当前项目的生效配置值（含默认叠加）                             |
-| `wt config list`        | 提示需在项目内执行                                                             | 列出当前项目的生效配置（包含默认值）                               |
+| `wt config set <k> <v>` | 提示需在项目内执行                                                             | 写入当前项目的配置（`language` 会改写全局配置）                   |
+| `wt config unset`       | 提示需在项目内执行                                                             | 从当前项目移除键（`language` 恢复全局默认）                       |
+| `wt config get <k>`     | 返回生效配置值（内置默认 + 全局 + 项目）                                       | 同左，若项目覆盖则优先生效                                         |
+| `wt config list`        | 提示需在项目内执行                                                             | 列出当前项目的生效配置（包含默认值，语言总是列在末尾）           |
+| `wt lang`               | 交互或非交互切换 CLI 语言，直接写入全局配置                                    | 同左（TTY 下提供选择菜单）                                         |
 | `wt sync`               | 提示需在项目内执行                                                             | 将主工作区的补丁应用到同项目选定 worktree（需确认目标）            |
 | `wt detach`             | 列出所有已配置项目供选择，确认后删除所选项目配置目录                           | 直接移除当前项目的配置目录（可用 --yes 跳过确认）                  |
 | `wt shell-hook <shell>` | 输出指定 shell 的集成脚本片段                                                  | 输出指定 shell 的集成脚本片段                                      |
@@ -35,7 +36,7 @@
 
 - **定位**: 全局或项目目录均可调用；无参数时也是默认执行的命令。
 - **语法**: `wt help` 或直接运行 `wt`。
-- **行为**: 输出核心命令列表，并以框图展示当前默认项目目录；自动根据 `wt config` 中的 `language` 选择中英文。
+- **行为**: 输出核心命令列表，并以框图展示当前默认项目目录；自动根据 `wt lang` 设定的语言切换中英文。
 - **注意**: 未完成 `wt init` 时仍会显示帮助，但会标注项目目录未设置；设置 `NO_COLOR` 可禁用彩色高亮。
 
 ### `wt init`
@@ -106,11 +107,22 @@
 
 ### `wt config`
 
-- **定位**: `get/list` 任何上下文均可；`set/unset` 需识别到项目并且未通过 `WT_CONFIG_FILE` 强制覆盖。
+- **定位**: `get/list` 任何上下文均可；`set/unset` 需识别到项目并且未通过 `WT_CONFIG_FILE` 强制覆盖（键为 `language` 时例外，始终允许写入全局配置）。
 - **语法**: `wt config list`、`wt config get <key> [--stored]`、`wt config set <key> <value>`、`wt config unset <key>`；也支持 `wt config <key>`（读取）和 `wt config <key> <value>`（写入）。
-- **行为**: 读取顺序为内置默认 → 全局模板 `config.kv` → 项目配置；写入仅触及当前项目文件。
-- **常用键**: `language`、`add.branch-prefix`、`add.copy-env.*`、`add.install-deps.*`、`add.serve-dev.*`、`add.serve-dev.logging-path` 等，详见 `config-example.kv`（旧版的 `repo.branch` 已移除）。
-- **注意**: 写入 `language` 时会校验合法值；`--stored` 仅返回配置文件值而不包含默认值；未识别到项目时写操作会直接报错。
+- **行为**: 读取顺序为内置默认 → 全局 `~/.worktree.sh/config.kv` → 项目配置；除 `language` 外的写入仅修改项目配置文件。
+- **常用键**: `language`（全局）、`add.branch-prefix`、`add.copy-env.*`、`add.install-deps.*`、`add.serve-dev.*`、`add.serve-dev.logging-path` 等，详见 `config-example.kv`。
+- **注意**: `language` 会委托给 `wt lang` 处理并校验值，其它键仍受项目作用域限制；`--stored` 仅返回配置文件中存在的值；未识别到项目时针对项目作用域的写操作会报错。
+
+### `wt lang`
+
+- **定位**: 任意目录；修改全局语言配置。
+- **语法**: 
+  - `wt lang`（TTY 下提供交互选择；非 TTY 等同 `wt lang get`）
+  - `wt lang get`
+  - `wt lang set <en|zh>`
+  - `wt lang reset`
+- **行为**: 更新 `~/.worktree.sh/config.kv` 中的语言字段，并立即影响后续命令输出的语言；项目配置不会覆盖该值。
+- **注意**: `wt config set/unset language` 会自动转发至 `wt lang`，确保旧脚本无须调整。
 
 ### `wt detach`
 

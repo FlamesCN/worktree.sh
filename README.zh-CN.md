@@ -84,7 +84,8 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 | `wt clean`                           | 批量清理数字命名的 worktree，并删除对应的 `feat/*` 分支。                     |
 | `wt detach [slug]`                   | 清理指定项目由 wt 创建的 worktree 并删除注册信息（加 `-y` 跳过全部确认）。    |
 | `wt main`                            | 输出主仓库路径。                                                              |
-| `wt config`                          | 检查或调整 CLI 行为。                                                         |
+| `wt config`                          | 检查或调整项目级行为（分支前缀、自动 dev server 等）。                        |
+| `wt lang`                            | 全局选择 CLI 语言（`wt lang`、`wt lang set en`/`zh`、`wt lang reset`）。      |
 | `wt reinstall`                       | 依次执行仓库内的 `uninstall.sh` 与 `install.sh`，重新部署 wt。                |
 | `wt uninstall`                       | 移除二进制并清理 shell hook。                                                 |
 | `wt help`                            | 查看内置命令参考。                                                            |
@@ -125,15 +126,24 @@ worktree.sh 把创建额外 worktree 所需的繁琐步骤都打包好了：它�
 
 ## 配置要点
 
-配置保存在 `~/.worktree.sh/config.kv`（key=value 文本），通过 `wt config set` 修改：
+项目级配置存放在 `~/.worktree.sh/projects/<slug>/config.kv`，需在对应项目目录使用 `wt config set` 修改：
 
 ```bash
 wt config set add.serve-dev.enabled false    # 关闭自动启动 dev server
 wt config set add.install-deps.enabled true  # 确保自动安装依赖
 wt config set add.branch-prefix "feature/"   # 自定义分支前缀
-wt config set language zh                    # 将 CLI 提示切换为中文
 wt config list                               # 查看当前配置
 ```
+
+全局语言改用 `wt lang` 管理，结果写入 `~/.worktree.sh/config.kv`：
+
+```bash
+wt lang                # TTY 下提供菜单，非交互环境打印当前语言代码
+wt lang set zh         # 将 CLI 文案切换为中文
+wt lang reset          # 恢复默认英文
+```
+
+已有脚本若调用 `wt config set language ...`，会自动转发到 `wt lang`，无需改动。
 
 如需使用其它配置文件路径，可设置环境变量 `WT_CONFIG_FILE`。CLI 会直接读取该文本文件，无需额外缓存或守护进程。
 

@@ -86,7 +86,8 @@ worktree.sh packages the repetitive setup required to spin up extra git worktree
 | `wt clean`                           | Batch-remove numerically named worktrees and matching `feat/*` branches.                                   |
 | `wt detach [slug]`                   | Remove wt-managed worktrees for a project and delete its registry entry (add `-y` to skip prompts).        |
 | `wt main`                            | Output the main repository path.                                                                           |
-| `wt config`                          | Inspect or tweak CLI behavior.                                                                             |
+| `wt config`                          | Inspect or tweak per-project behavior (branch prefixes, auto dev server, etc.).                            |
+| `wt lang`                            | Pick the CLI language globally (`wt lang`, `wt lang set en`/`zh`, `wt lang reset`).                        |
 | `wt reinstall`                       | Run the bundled `uninstall.sh` followed by `install.sh` to refresh wt in place.                            |
 | `wt uninstall`                       | Remove the binary and shell hooks.                                                                         |
 | `wt help`                            | Show built-in reference for all commands.                                                                  |
@@ -127,15 +128,24 @@ Reinstalls are idempotent. If we ever ship a breaking change, you can still fall
 
 ## Configuration Essentials
 
-Settings live in `~/.worktree.sh/config.kv`. Update them with `wt config set`:
+Per-project settings live in `~/.worktree.sh/projects/<slug>/config.kv`. Update them with `wt config set` (run inside the project):
 
 ```bash
 wt config set add.serve-dev.enabled false    # Disable auto dev server
 wt config set add.install-deps.enabled true  # Ensure dependencies are installed
 wt config set add.branch-prefix "feature/"   # Customize branch prefixes
-wt config set language zh                    # Switch CLI prompts to Simplified Chinese
 wt config list                               # Inspect current values
 ```
+
+Language is managed globally (stored in `~/.worktree.sh/config.kv`):
+
+```bash
+wt lang                # TTY: pick from a menu; non-TTY prints the current code
+wt lang set zh         # Switch prompts to Simplified Chinese
+wt lang reset          # Restore the default English prompts
+```
+
+Existing scripts that call `wt config set language ...` continue to work—they now delegate to `wt lang` under the hood.
 
 Set the `WT_CONFIG_FILE` environment variable if you prefer a custom config path. The CLI reads the key/value file directly—no extra caches or daemons.
 

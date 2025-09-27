@@ -911,6 +911,7 @@ prompt_confirm_options_display() {
 }
 
 prompt_success_line() {
+  prompt_init_ui
   local question="$1"
   local answer_display="$2"
   local lines_to_clear="${3:-0}"
@@ -2610,6 +2611,7 @@ usage() {
   rm [name ...]      删除一个或多个 worktree（省略 name 时使用当前目录）
   clean              清理数字 worktree（匹配前缀 + 数字）
   config             查看或更新 worktree.sh 配置
+  lang               切换 CLI 语言（交互式或使用 wt lang set/get/reset）
   uninstall          卸载 wt 并清理 shell 集成
   reinstall          运行 uninstall.sh + install.sh 重新部署 wt
   help               显示此帮助
@@ -2635,6 +2637,7 @@ Core commands:
   rm [name ...]      Remove one or more worktrees (current directory if name omitted)
   clean              Remove numeric worktrees (matching prefix + digits)
   config             Inspect or update worktree.sh configuration
+  lang               Switch CLI language (interactive or via wt lang set/get/reset)
   uninstall          Uninstall wt and clean shell hooks
   reinstall          Run uninstall.sh + install.sh to refresh wt
   help               Show this guide
@@ -3918,20 +3921,35 @@ cmd_add() {
 }
 
 config_print_effective() {
+  local has_language_line=0
+
   if [ -f "$CONFIG_FILE" ]; then
     if [ -s "$CONFIG_FILE" ]; then
+      if grep -q '^language=' "$CONFIG_FILE" 2> /dev/null; then
+        has_language_line=1
+      fi
       cat "$CONFIG_FILE"
     else
       info "$(msg config_list_empty "$CONFIG_FILE")"
     fi
-    return 0
+  else
+    if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -eq 1 ]; then
+      die "$(msg config_file_missing "$CONFIG_FILE")"
+    fi
+    info "$(msg config_list_empty "$CONFIG_FILE")"
   fi
 
-  if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -eq 1 ]; then
-    die "$(msg config_file_missing "$CONFIG_FILE")"
+  local effective_language
+  if effective_language=$(config_get_or_default "language" 2> /dev/null); then
+    :
+  else
+    effective_language="$CONFIG_DEFAULT_LANGUAGE"
   fi
 
-  info "$(msg config_list_empty "$CONFIG_FILE")"
+  if [ "$has_language_line" -eq 0 ]; then
+    printf 'language=%s\n' "$effective_language"
+  fi
+
   return 0
 }
 
@@ -3953,7 +3971,7 @@ wt config - 查看或更新 worktree.sh 配置
   wt config <key> <value>        等同于 set
 
 支持的键:
-  language                        CLI 显示语言（en|zh，默认 en）
+  language                        CLI 显示语言（en|zh，默认 en，使用 "wt lang" 切换）
   repo.path                       默认维护的仓库根目录（由 wt init 设置）
   add.branch-prefix               新 worktree 分支名前缀（默认 feat/，若已存在同名分支会依次回退到 feature/、ft/）
   add.copy-env.enabled            是否在 wt add 时复制环境文件
@@ -3964,9 +3982,8 @@ wt config - 查看或更新 worktree.sh 配置
   add.serve-dev.command           启动开发服务的命令（留空则自动推断）
   add.serve-dev.logging-path      Dev 服务日志所在子目录（默认: tmp）
 
-说明:
-  配置以 ~/.worktree.sh/config.kv 为准，采用 key=value 文本格式，不再支持通过环境变量临时覆盖。
-  布尔值接受 true/false/1/0/yes/no/on/off。
+语言:
+  全局语言使用 "wt lang" 管理；项目配置项可继续通过 wt config 调整。
 CONFIG_USAGE_ZH
     ;;
   *)
@@ -3985,7 +4002,7 @@ Shortcuts:
   wt config <key> <value>        Shortcut for set
 
 Supported keys:
-  language                        CLI language (en or zh; default: en)
+  language                        CLI language (en or zh; default: en). Use "wt lang" to change.
   repo.path                       Root directory of the tracked repository (set by wt init)
   add.branch-prefix               Branch name prefix used for new worktrees (default: feat/; falls back to feature/ then ft/ when conflicts exist)
   add.copy-env.enabled            Whether wt add copies environment files
@@ -3996,9 +4013,8 @@ Supported keys:
   add.serve-dev.command           Command used to start the dev service (empty = auto-detect)
   add.serve-dev.logging-path      Subdirectory for dev logs (default: tmp)
 
-Notes:
-  Runtime settings come solely from ~/.worktree.sh/config.kv (key=value text); environment overrides are ignored.
-  Boolean values accept true/false/1/0/yes/no/on/off.
+Language:
+  Manage global language via "wt lang"; project-level options remain under wt config.
 CONFIG_USAGE_EN
     ;;
   esac
