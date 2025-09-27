@@ -537,22 +537,15 @@ LANG_USAGE_EN
     printf 'list takes no arguments'
     ;;
   list_global_project_header)
-    if [ -n "${3:-}" ] && [ -n "${4:-}" ]; then
-      printf '📁 Project %s (%s@%s) — %s' "$1" "$3" "$4" "$2"
-    elif [ -n "${3:-}" ]; then
-      printf '📁 Project %s (%s) — %s' "$1" "$3" "$2"
-    elif [ -n "${4:-}" ]; then
-      printf '📁 Project %s (%s) — %s' "$1" "$4" "$2"
-    else
-      printf '📁 Project %s — %s' "$1" "$2"
-    fi
+    printf '📁 %s' "$1"
     ;;
   list_global_worktree_entry)
-    if [ -n "${4:-}" ]; then
-      printf '  • %-18s %-8s %s %s' "$1" "$2" "$3" "$4"
-    else
-      printf '  • %-18s %-8s %s' "$1" "$2" "$3"
-    fi
+    local marker="$1"
+    local name="$2"
+    local branch="$3"
+    local hash="$4"
+    local path="$5"
+    printf '  %s %-13s %-18s %-8s  %s' "$marker" "$name" "$branch" "$hash" "$path"
     ;;
   main_no_args)
     printf 'main takes no arguments'
@@ -1286,22 +1279,15 @@ LANG_USAGE_ZH
     printf 'list 不接受参数'
     ;;
   list_global_project_header)
-    if [ -n "${3:-}" ] && [ -n "${4:-}" ]; then
-      printf '📁 项目 %s（%s@%s）— %s' "$1" "$3" "$4" "$2"
-    elif [ -n "${3:-}" ]; then
-      printf '📁 项目 %s（%s）— %s' "$1" "$3" "$2"
-    elif [ -n "${4:-}" ]; then
-      printf '📁 项目 %s（%s）— %s' "$1" "$4" "$2"
-    else
-      printf '📁 项目 %s — %s' "$1" "$2"
-    fi
+    printf '📁 %s' "$1"
     ;;
   list_global_worktree_entry)
-    if [ -n "${4:-}" ]; then
-      printf '  • %-18s %-8s %s %s' "$1" "$2" "$3" "$4"
-    else
-      printf '  • %-18s %-8s %s' "$1" "$2" "$3"
-    fi
+    local marker="$1"
+    local name="$2"
+    local branch="$3"
+    local hash="$4"
+    local path="$5"
+    printf '  %s %-13s %-18s %-8s  %s' "$marker" "$name" "$branch" "$hash" "$path"
     ;;
   main_no_args)
     printf 'main 不接受参数'

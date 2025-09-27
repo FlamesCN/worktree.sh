@@ -3495,18 +3495,17 @@ cmd_list() {
     fi
   fi
 
-  local branch
-  branch=$(git_project rev-parse --abbrev-ref HEAD 2> /dev/null || true)
-  if [ "$branch" = "HEAD" ]; then
-    branch=""
+  # Convert to ~ format if under home directory
+  local display_path="$repo_path"
+  if [[ "$repo_path" == "$HOME"* ]]; then
+    display_path="~${repo_path#"$HOME"}"
   fi
 
-  local head_short
-  head_short=$(git_project rev-parse --short HEAD 2> /dev/null || true)
-
   local header_line
-  header_line=$(msg list_global_project_header "$display_name" "$repo_path" "$branch" "$head_short")
+  header_line=$(msg list_global_project_header "$display_name")
   info "$(format_bold_line "$header_line")"
+  info "   └─ $display_path"
+  info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   local _prev_primary="$LIST_PRIMARY_WORKTREE_PATH"
   LIST_PRIMARY_WORKTREE_PATH="$repo_path"
@@ -3542,7 +3541,7 @@ project_emit_worktree_entry() {
     if [ "$branch_display" = '-' ]; then
       branch_display='(detached)'
     else
-      status='[detached]'
+      status=' [detached]'
     fi
   fi
   if [[ " $flags " == *" bare "* ]]; then
@@ -3552,7 +3551,7 @@ project_emit_worktree_entry() {
       if [ -n "$status" ]; then
         status="$status [bare]"
       else
-        status='[bare]'
+        status=' [bare]'
       fi
     fi
   fi
@@ -3560,14 +3559,14 @@ project_emit_worktree_entry() {
     if [ -n "$status" ]; then
       status="$status [locked]"
     else
-      status='[locked]'
+      status=' [locked]'
     fi
   fi
   if [[ " $flags " == *" prunable "* ]]; then
     if [ -n "$status" ]; then
       status="$status [prunable]"
     else
-      status='[prunable]'
+      status=' [prunable]'
     fi
   fi
 
@@ -3576,12 +3575,40 @@ project_emit_worktree_entry() {
     head_short="${head:0:7}"
   fi
 
-  local entry_line
-  if [ -n "$status" ]; then
-    entry_line=$(msg list_global_worktree_entry "$branch_display" "$head_short" "$path" "$status")
-  else
-    entry_line=$(msg list_global_worktree_entry "$branch_display" "$head_short" "$path")
+  # Extract worktree name from path
+  local worktree_name="main"
+  local path_basename
+  path_basename=$(basename "$path")
+
+  if [ -n "${LIST_PRIMARY_WORKTREE_PATH:-}" ]; then
+    if [ "$path" = "$LIST_PRIMARY_WORKTREE_PATH" ]; then
+      worktree_name="main"
+    else
+      # Extract suffix from path like worktree.sh.designlist -> designlist
+      local main_basename
+      main_basename=$(basename "$LIST_PRIMARY_WORKTREE_PATH")
+      if [[ "$path_basename" == "${main_basename}."* ]]; then
+        worktree_name="${path_basename#"${main_basename}."}"
+      else
+        worktree_name="$path_basename"
+      fi
+    fi
   fi
+
+  # Determine marker: ▶ for current worktree, • for others
+  local marker="•"
+  local current_dir_abs
+  if current_dir_abs=$(cd "$PWD" 2>/dev/null && pwd -P); then
+    if [ "$current_dir_abs" = "$path" ]; then
+      marker="▶"
+    fi
+  fi
+
+  # Show path as basename only
+  local display_path="$path_basename$status"
+
+  local entry_line
+  entry_line=$(msg list_global_worktree_entry "$marker" "$worktree_name" "$branch_display" "$head_short" "$display_path")
 
   if [ -n "${LIST_PRIMARY_WORKTREE_PATH:-}" ] && [ "$path" = "$LIST_PRIMARY_WORKTREE_PATH" ]; then
     info "$(format_cyan_bold_line "$entry_line")"
@@ -3652,14 +3679,21 @@ cmd_list_global() {
     local slug="${PROJECT_REGISTRY_SLUGS[$idx]}"
     local repo_path="${PROJECT_REGISTRY_PATHS[$idx]}"
     local display_name="${PROJECT_REGISTRY_DISPLAY_NAMES[$idx]}"
-    local branch="${PROJECT_REGISTRY_BRANCHES[$idx]}"
-    local head_short="${PROJECT_REGISTRY_HEADS[$idx]}"
+    # Convert to ~ format if under home directory
+    local display_path="$repo_path"
+    if [[ "$repo_path" == "$HOME"* ]]; then
+      display_path="~${repo_path#"$HOME"}"
+    fi
+
     if [ "$idx" -gt 0 ]; then
       info ''
     fi
+
     local header_line
-    header_line=$(msg list_global_project_header "$display_name" "$repo_path" "$branch" "$head_short")
+    header_line=$(msg list_global_project_header "$display_name")
     info "$(format_bold_line "$header_line")"
+    info "   └─ $display_path"
+    info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
       info "$(msg project_path_missing "$display_name")"
