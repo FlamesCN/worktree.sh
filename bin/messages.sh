@@ -154,6 +154,66 @@ msg_en() {
   lang_current)
     printf 'Current language: %s (%s)' "$1" "$2"
     ;;
+  theme_set_requires)
+    printf 'theme set requires <box|sage|archer>'
+    ;;
+  invalid_theme)
+    printf 'unknown theme: %s (expected box, sage, or archer)' "$1"
+    ;;
+  theme_set_success)
+    printf 'Theme set to %s' "$2"
+    ;;
+  theme_reset_success)
+    printf 'Theme reset to %s' "$2"
+    ;;
+  theme_current)
+    printf 'Current theme: %s' "$2"
+    ;;
+  theme_option_box_label)
+    printf 'box'
+    ;;
+  theme_option_box_hint)
+    printf 'Use framed headers for wt list'
+    ;;
+  theme_option_sage_label)
+    printf 'sage'
+    ;;
+  theme_option_sage_hint)
+    printf 'Use minimal headers for wt list (includes path)'
+    ;;
+  theme_option_archer_label)
+    printf 'archer'
+    ;;
+  theme_option_archer_hint)
+    printf 'Use compact headers without project path'
+    ;;
+  theme_option_reset_label)
+    printf 'Reset to default'
+    ;;
+  theme_option_reset_hint)
+    printf 'Restore boxed theme'
+    ;;
+  theme_prompt_select)
+    printf 'Select a theme for wt list output:'
+    ;;
+  theme_unknown_command)
+    printf 'unknown theme command: %s' "$1"
+    ;;
+  theme_usage)
+    cat << 'THEME_USAGE_EN'
+wt theme - Manage worktree.sh list layout theme
+
+Interactive (TTY):
+  wt theme                 Choose theme with arrow keys
+
+Non-interactive:
+  wt theme get                     Print current theme code
+  wt theme set <box|sage|archer>   Switch theme
+  wt theme reset                   Reset to default (box)
+  wt theme box|sage|archer         Shortcut for wt theme set
+  wt theme help                    Show this help
+THEME_USAGE_EN
+    ;;
   lang_usage)
     cat << 'LANG_USAGE_EN'
 wt lang - Manage worktree.sh interface language
@@ -458,7 +518,7 @@ LANG_USAGE_EN
     printf 'No'
     ;;
   prompt_choice_hint)
-    printf '%s' '- Use arrow keys. Press Enter to confirm.'
+    printf '%s' '- Use arrow keys. Enter to confirm, Esc to cancel.'
     ;;
   prompt_default_hint)
     printf 'Default (press Enter to keep): %s' "$1"
@@ -896,6 +956,66 @@ msg_zh() {
   lang_current)
     printf '当前界面语言：%s（%s）' "$1" "$2"
     ;;
+  theme_set_requires)
+    printf 'theme set 需要 <box|sage|archer>'
+    ;;
+  invalid_theme)
+    printf '未知主题：%s（可选 box、sage 或 archer）' "$1"
+    ;;
+  theme_set_success)
+    printf '列表主题已切换为 %s' "$2"
+    ;;
+  theme_reset_success)
+    printf '列表主题已重置为 %s' "$2"
+    ;;
+  theme_current)
+    printf '当前列表主题：%s' "$2"
+    ;;
+  theme_option_box_label)
+    printf 'box'
+    ;;
+  theme_option_box_hint)
+    printf 'wt list 使用方框标题'
+    ;;
+  theme_option_sage_label)
+    printf 'sage'
+    ;;
+  theme_option_sage_hint)
+    printf 'wt list 使用简洁标题（包含路径）'
+    ;;
+  theme_option_archer_label)
+    printf 'archer'
+    ;;
+  theme_option_archer_hint)
+    printf 'wt list 使用简洁标题（不显示路径）'
+    ;;
+  theme_option_reset_label)
+    printf '重置为默认值'
+    ;;
+  theme_option_reset_hint)
+    printf '恢复方框主题'
+    ;;
+  theme_prompt_select)
+    printf '选择 wt list 输出的主题：'
+    ;;
+  theme_unknown_command)
+    printf '未知主题命令：%s' "$1"
+    ;;
+  theme_usage)
+    cat << 'THEME_USAGE_ZH'
+wt theme - 管理 worktree.sh 列表主题
+
+交互式 (TTY):
+  wt theme                 使用方向键选择主题
+
+非交互式:
+  wt theme get             输出当前主题代码
+  wt theme set <box|sage|archer>  切换主题
+  wt theme reset                 恢复默认主题（box）
+  wt theme box|sage|archer       等同于 wt theme set
+  wt theme help            显示本帮助
+THEME_USAGE_ZH
+    ;;
   lang_usage)
     cat << 'LANG_USAGE_ZH'
 wt lang - 管理 worktree.sh 界面语言
@@ -1218,7 +1338,7 @@ LANG_USAGE_ZH
     printf 'No'
     ;;
   prompt_choice_hint)
-    printf '%s' '- 使用方向键选择，按回车确认。'
+    printf '%s' '- 使用方向键选择，回车确认，Esc 取消。'
     ;;
   prompt_default_hint)
     printf '默认值（按回车保留）：%s' "$1"

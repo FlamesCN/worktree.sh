@@ -99,6 +99,7 @@ wt rm 3000
 | -------------- | ---------------------------- | ---------------- |
 | `wt config`    | View/modify project settings | `wt config list` |
 | `wt lang`      | Set CLI language (en/zh)     | `wt lang set zh` |
+| `wt theme`     | Switch `wt list` theme (`box`\|`sage`\|`archer`) | `wt theme set box` |
 | `wt help`      | Show command reference       | `wt help`        |
 | `wt reinstall` | Update to latest version     | `wt reinstall`   |
 | `wt uninstall` | Remove worktree.sh           | `wt uninstall`   |

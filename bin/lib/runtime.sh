@@ -27,6 +27,7 @@ readonly CONFIG_DEFAULT_COPY_ENV_ENABLED=1
 readonly CONFIG_DEFAULT_INSTALL_DEPS_COMMAND=""
 readonly CONFIG_DEFAULT_SERVE_DEV_COMMAND=""
 readonly CONFIG_DEFAULT_LANGUAGE="en"
+readonly CONFIG_DEFAULT_THEME="box"
 readonly -a CONFIG_DEFAULT_COPY_ENV_FILES=(".env" ".env.local")
 readonly -a CONFIG_BRANCH_PREFIX_FALLBACKS=("feature/" "ft/")
 
@@ -40,6 +41,7 @@ COPY_ENV_ENABLED=0
 INSTALL_DEPS_COMMAND=""
 SERVE_DEV_COMMAND=""
 LANGUAGE="$CONFIG_DEFAULT_LANGUAGE"
+LIST_THEME="$CONFIG_DEFAULT_THEME"
 WORKING_REPO_PATH_CONFIGURED=0
 COPY_ENV_FILE_SELECTION=()
 
@@ -48,6 +50,7 @@ readonly MESSAGES_FILE="$SCRIPT_DIR/messages.sh"
 MESSAGES_LOADED=0
 AUTO_CD_HINT_SHOWN=0
 LIST_PRIMARY_WORKTREE_PATH=""
+LIST_OUTPUT_WIDTH=0
 
 PROMPT_UI_INITIALIZED=0
 PROMPT_ASSUME_DEFAULTS=0
@@ -69,6 +72,7 @@ PROMPT_SYMBOL_SUCCESS="✔"
 PROMPT_SYMBOL_ARROW="›"
 PROMPT_SYMBOL_CHOICE="❯"
 PROMPT_SYMBOL_ELLIPSIS="…"
+PROMPT_CLEANUP_RAN=0
 
 ensure_messages_loaded() {
   if [ "$MESSAGES_LOADED" = "1" ]; then
@@ -124,6 +128,51 @@ language_code_to_config_value() {
   esac
 }
 
+normalize_theme() {
+  if [ $# -ne 1 ]; then
+    return 1
+  fi
+
+  local raw
+  raw=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  raw=${raw// /}
+  raw=${raw//-/_}
+
+  case "$raw" in
+  box | boxed | box_style | border | frame)
+    printf 'box\n'
+    return 0
+    ;;
+  sage | compact | simple | plain | legacy)
+    printf 'sage\n'
+    return 0
+    ;;
+  archer | minimal_no_path | lean)
+    printf 'archer\n'
+    return 0
+    ;;
+  esac
+
+  return 1
+}
+
+theme_code_to_config_value() {
+  case "${1:-}" in
+  box)
+    printf 'box\n'
+    ;;
+  sage)
+    printf 'sage\n'
+    ;;
+  archer)
+    printf 'archer\n'
+    ;;
+  *)
+    printf '%s\n' "${1:-}"
+    ;;
+  esac
+}
+
 normalize_branch_prefix_value() {
   local value="${1:-}"
   if [ -z "$value" ]; then
@@ -153,6 +202,24 @@ init_language() {
   if [ "$from_config" -eq 0 ] && [ -n "$value" ]; then
     if normalized=$(normalize_language "$value" 2> /dev/null); then
       LANGUAGE="$normalized"
+    fi
+  fi
+}
+
+init_theme() {
+  LIST_THEME="$CONFIG_DEFAULT_THEME"
+
+  local value normalized
+  if value=$(config_get "theme" 2> /dev/null); then
+    if normalized=$(normalize_theme "$value" 2> /dev/null); then
+      LIST_THEME="$normalized"
+    fi
+  fi
+
+  value="${WT_THEME:-}"
+  if [ -n "$value" ]; then
+    if normalized=$(normalize_theme "$value" 2> /dev/null); then
+      LIST_THEME="$normalized"
     fi
   fi
 }
@@ -696,6 +763,7 @@ prompt_init_ui() {
   fi
 
   PROMPT_UI_INITIALIZED=1
+  prompt_register_cleanup_trap
 
   if [ -t 0 ] && [ -t 2 ]; then
     PROMPT_HAS_TTY=1
@@ -931,10 +999,34 @@ prompt_join_by_space() {
   printf '%s' "$*"
 }
 
+prompt_cleanup_trap() {
+  if [ "${PROMPT_CLEANUP_RAN:-0}" -eq 1 ]; then
+    return
+  fi
+  PROMPT_CLEANUP_RAN=1
+  prompt_show_cursor
+}
+
+prompt_register_cleanup_trap() {
+  if ! trap -p EXIT | grep -F 'prompt_cleanup_trap' > /dev/null 2>&1; then
+    trap 'prompt_cleanup_trap' EXIT
+  fi
+  if ! trap -p INT | grep -F 'prompt_cleanup_trap' > /dev/null 2>&1; then
+    trap 'prompt_cleanup_trap; exit 130' INT
+  fi
+  if ! trap -p TERM | grep -F 'prompt_cleanup_trap' > /dev/null 2>&1; then
+    trap 'prompt_cleanup_trap; exit 143' TERM
+  fi
+  if ! trap -p HUP | grep -F 'prompt_cleanup_trap' > /dev/null 2>&1; then
+    trap 'prompt_cleanup_trap; exit 129' HUP
+  fi
+}
+
 prompt_hide_cursor() {
   if [ "$PROMPT_HAS_TTY" -ne 1 ]; then
     return
   fi
+  prompt_register_cleanup_trap
   if [ "${PROMPT_CURSOR_HIDDEN:-0}" -eq 1 ]; then
     return
   fi
@@ -1297,19 +1389,38 @@ prompt_choice() {
         ;;
       $'\x1b')
         local key2=""
-        if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key2 && [ "$key2" = "[" ]; then
-          local key3=""
-          if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key3; then
-            case "$key3" in
-            A)
-              selected=$(((selected - 1 + count) % count))
-              ;;
-            B)
-              selected=$(((selected + 1) % count))
-              ;;
-            esac
+        if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key2; then
+          if [ "$key2" = "[" ]; then
+            local key3=""
+            if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key3; then
+              case "$key3" in
+              A)
+                selected=$(((selected - 1 + count) % count))
+                ;;
+              B)
+                selected=$(((selected + 1) % count))
+                ;;
+              *)
+                cancel_menu=1
+                exit_menu=1
+                ;;
+              esac
+            else
+              cancel_menu=1
+              exit_menu=1
+            fi
+          else
+            cancel_menu=1
+            exit_menu=1
           fi
+        else
+          cancel_menu=1
+          exit_menu=1
         fi
+        ;;
+      $'\x03')
+        cancel_menu=1
+        exit_menu=1
         ;;
       k | K)
         selected=$(((selected - 1 + count) % count))
@@ -2159,6 +2270,9 @@ config_default_value() {
   language)
     printf '%s\n' "$CONFIG_DEFAULT_LANGUAGE"
     ;;
+  theme)
+    printf '%s\n' "$CONFIG_DEFAULT_THEME"
+    ;;
   repo.path)
     printf '%s\n' "$CONFIG_DEFAULT_WORKING_REPO_PATH"
     ;;
@@ -2405,6 +2519,7 @@ init_settings() {
 
   init_settings_apply_from_sources
   init_language
+  init_theme
 }
 
 init_settings_apply_from_sources() {
@@ -2417,6 +2532,10 @@ init_settings_apply_from_sources() {
 
   if value=$(config_get "language" 2> /dev/null); then
     [ -n "$value" ] && LANGUAGE="$value"
+  fi
+
+  if value=$(config_get "theme" 2> /dev/null); then
+    [ -n "$value" ] && LIST_THEME="$value"
   fi
 
   if value=$(config_get "repo.path" 2> /dev/null); then
@@ -2510,10 +2629,12 @@ init_settings_defaults() {
   SERVE_DEV_COMMAND="$CONFIG_DEFAULT_SERVE_DEV_COMMAND"
   WORKING_REPO_PATH_CONFIGURED=0
   LANGUAGE="$CONFIG_DEFAULT_LANGUAGE"
+  LIST_THEME="$CONFIG_DEFAULT_THEME"
 
   WORKTREE_NAME_PREFIX="$(basename "$CONFIG_DEFAULT_WORKING_REPO_PATH")."
 
   init_language
+  init_theme
 }
 
 config_bool_to_string() {
@@ -2529,6 +2650,7 @@ info() {
 }
 
 die() {
+  prompt_show_cursor
   printf 'wt: %s\n' "$*" >&2
   exit 1
 }
@@ -2612,6 +2734,7 @@ usage() {
   clean              清理数字 worktree（匹配前缀 + 数字）
   config             查看或更新 worktree.sh 配置
   lang               切换 CLI 语言（交互式或使用 wt lang set/get/reset）
+  theme             切换列表主题（交互式或使用 wt theme set/get/reset）
   uninstall          卸载 wt 并清理 shell 集成
   reinstall          运行 uninstall.sh + install.sh 重新部署 wt
   help               显示此帮助
@@ -2638,6 +2761,7 @@ Core commands:
   clean              Remove numeric worktrees (matching prefix + digits)
   config             Inspect or update worktree.sh configuration
   lang               Switch CLI language (interactive or via wt lang set/get/reset)
+  theme             Switch list theme (interactive or via wt theme set/get/reset)
   uninstall          Uninstall wt and clean shell hooks
   reinstall          Run uninstall.sh + install.sh to refresh wt
   help               Show this guide
@@ -3477,6 +3601,131 @@ format_cyan_bold_line() {
   printf '%s%s%s' "$start" "$text" "$end"
 }
 
+list_effective_width() {
+  if [ "${LIST_OUTPUT_WIDTH:-0}" -gt 0 ]; then
+    printf '%d\n' "$LIST_OUTPUT_WIDTH"
+    return
+  fi
+
+  local width=0
+
+  if [ -n "${COLUMNS:-}" ]; then
+    case "$COLUMNS" in
+    '' | *[!0-9]*) width=0 ;;
+    *) width="$COLUMNS" ;;
+    esac
+  fi
+
+  if [ "$width" -le 0 ] && [ -t 2 ]; then
+    local cols=""
+    if cols=$(tput cols 2> /dev/null || true); then
+      case "$cols" in
+      '' | *[!0-9]*) cols=0 ;;
+      esac
+      width="$cols"
+    fi
+  fi
+
+  if [ "$width" -le 0 ] && [ -t 1 ]; then
+    local cols=""
+    if cols=$(tput cols 2> /dev/null || true); then
+      case "$cols" in
+      '' | *[!0-9]*) cols=0 ;;
+      esac
+      width="$cols"
+    fi
+  fi
+
+  if [ "$width" -le 0 ]; then
+    width=80
+  fi
+
+  LIST_OUTPUT_WIDTH="$width"
+  printf '%d\n' "$width"
+}
+
+list_render_project_header_box() {
+  local display_name="$1"
+  local display_path="$2"
+
+  info "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+
+  local content_width=72
+  local prefix="📁 $display_name"
+  local suffix="$display_path"
+  local prefix_len=$((${#display_name} + 3))
+  local suffix_len=${#display_path}
+  local spaces_needed=$((content_width - prefix_len - suffix_len))
+
+  if [ "$spaces_needed" -lt 1 ]; then
+    local max_path_len=$((content_width - prefix_len - 4))
+    if [ "$max_path_len" -gt 0 ]; then
+      suffix="...${display_path: -$max_path_len}"
+      suffix_len=${#suffix}
+      spaces_needed=$((content_width - prefix_len - suffix_len))
+    else
+      suffix=""
+      suffix_len=0
+      spaces_needed=$((content_width - prefix_len))
+    fi
+  fi
+
+  if [ "$spaces_needed" -lt 0 ]; then
+    spaces_needed=0
+  fi
+
+  local spaces=""
+  local i=0
+  while [ "$i" -lt "$spaces_needed" ]; do
+    spaces="$spaces "
+    i=$((i + 1))
+  done
+
+  printf '┃ 📁 %s%s%-*s ┃\n' "$(format_bold_line "$display_name")" "$spaces" "$suffix_len" "$suffix" >&2
+  info "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+}
+
+list_render_project_header_sage() {
+  local display_name="$1"
+  local display_path="$2"
+
+  local header_line
+  header_line=$(msg list_global_project_header "$display_name")
+  info "$(format_bold_line "$header_line")"
+  info "   └─ $display_path"
+  info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+
+list_render_project_header_archer() {
+  local display_name="$1"
+  local name_segment
+  name_segment=$(format_bold_line "$display_name")
+  local width
+  width=$(list_effective_width)
+  local ascii_only=1
+  case "$display_name" in
+  *[$'\x80'-$'\xFF']*) ascii_only=0 ;;
+  esac
+
+  local base_width
+  if [ "$ascii_only" -eq 1 ]; then
+    base_width=$((6 + ${#display_name}))
+  else
+    base_width="$width"
+  fi
+
+  if [ "$base_width" -ge "$width" ]; then
+    info "━━ 📁 ${name_segment}"
+    return
+  fi
+  local filler_units=$((width - base_width - 1))
+  local filler=""
+  if [ "$filler_units" -gt 0 ]; then
+    filler=" $(printf '%*s' "$filler_units" '' | tr ' ' '━')"
+  fi
+  info "━━ 📁 ${name_segment}${filler}"
+}
+
 cmd_list() {
   [ $# -eq 0 ] || die "$(msg list_no_args)"
 
@@ -3501,11 +3750,13 @@ cmd_list() {
     display_path="~${repo_path#"$HOME"}"
   fi
 
-  local header_line
-  header_line=$(msg list_global_project_header "$display_name")
-  info "$(format_bold_line "$header_line")"
-  info "   └─ $display_path"
-  info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  if [ "$LIST_THEME" = "sage" ]; then
+    list_render_project_header_sage "$display_name" "$display_path"
+  elif [ "$LIST_THEME" = "archer" ]; then
+    list_render_project_header_archer "$display_name"
+  else
+    list_render_project_header_box "$display_name" "$display_path"
+  fi
 
   local _prev_primary="$LIST_PRIMARY_WORKTREE_PATH"
   LIST_PRIMARY_WORKTREE_PATH="$repo_path"
@@ -3598,7 +3849,7 @@ project_emit_worktree_entry() {
   # Determine marker: ▶ for current worktree, • for others
   local marker="•"
   local current_dir_abs
-  if current_dir_abs=$(cd "$PWD" 2>/dev/null && pwd -P); then
+  if current_dir_abs=$(cd "$PWD" 2> /dev/null && pwd -P); then
     if [ "$current_dir_abs" = "$path" ]; then
       marker="▶"
     fi
@@ -3685,15 +3936,14 @@ cmd_list_global() {
       display_path="~${repo_path#"$HOME"}"
     fi
 
-    if [ "$idx" -gt 0 ]; then
-      info ''
+    if [ "$LIST_THEME" = "sage" ]; then
+      if [ "$idx" -gt 0 ]; then
+        info ''
+      fi
+      list_render_project_header_sage "$display_name" "$display_path"
+    else
+      list_render_project_header_box "$display_name" "$display_path"
     fi
-
-    local header_line
-    header_line=$(msg list_global_project_header "$display_name")
-    info "$(format_bold_line "$header_line")"
-    info "   └─ $display_path"
-    info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
       info "$(msg project_path_missing "$display_name")"
@@ -3956,11 +4206,15 @@ cmd_add() {
 
 config_print_effective() {
   local has_language_line=0
+  local has_theme_line=0
 
   if [ -f "$CONFIG_FILE" ]; then
     if [ -s "$CONFIG_FILE" ]; then
       if grep -q '^language=' "$CONFIG_FILE" 2> /dev/null; then
         has_language_line=1
+      fi
+      if grep -q '^theme=' "$CONFIG_FILE" 2> /dev/null; then
+        has_theme_line=1
       fi
       cat "$CONFIG_FILE"
     else
@@ -3982,6 +4236,17 @@ config_print_effective() {
 
   if [ "$has_language_line" -eq 0 ]; then
     printf 'language=%s\n' "$effective_language"
+  fi
+
+  local effective_theme
+  if effective_theme=$(config_get_or_default "theme" 2> /dev/null); then
+    :
+  else
+    effective_theme="$CONFIG_DEFAULT_THEME"
+  fi
+
+  if [ "$has_theme_line" -eq 0 ]; then
+    printf 'theme=%s\n' "$effective_theme"
   fi
 
   return 0
@@ -4015,9 +4280,10 @@ wt config - 查看或更新 worktree.sh 配置
   add.serve-dev.enabled           是否在 wt add 后启动开发服务
   add.serve-dev.command           启动开发服务的命令（留空则自动推断）
   add.serve-dev.logging-path      Dev 服务日志所在子目录（默认: tmp）
+  theme                           wt list 的显示主题（box 或 sage，默认 box，可用 "wt theme" 切换）
 
-语言:
-  全局语言使用 "wt lang" 管理；项目配置项可继续通过 wt config 调整。
+语言与主题:
+  全局语言使用 "wt lang" 管理；全局主题使用 "wt theme" 管理。项目级配置仍可通过 wt config 调整。
 CONFIG_USAGE_ZH
     ;;
   *)
@@ -4046,9 +4312,10 @@ Supported keys:
   add.serve-dev.enabled           Whether wt add starts the dev service
   add.serve-dev.command           Command used to start the dev service (empty = auto-detect)
   add.serve-dev.logging-path      Subdirectory for dev logs (default: tmp)
+  theme                           Theme for wt list output (box or sage; default box). Use "wt theme" to change.
 
-Language:
-  Manage global language via "wt lang"; project-level options remain under wt config.
+Language & theme:
+  Manage language via "wt lang"; manage theme via "wt theme". Project-level overrides remain available through wt config.
 CONFIG_USAGE_EN
     ;;
   esac

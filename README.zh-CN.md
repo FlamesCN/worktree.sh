@@ -95,13 +95,14 @@ wt rm 3000
 
 ### 配置
 
-| 命令           | 描述                   | 示例             |
-| -------------- | ---------------------- | ---------------- |
-| `wt config`    | 查看/修改项目设置      | `wt config list` |
-| `wt lang`      | 设置 CLI 语言（en/zh） | `wt lang set zh` |
-| `wt help`      | 显示命令参考           | `wt help`        |
-| `wt reinstall` | 更新到最新版本         | `wt reinstall`   |
-| `wt uninstall` | 删除 worktree.sh       | `wt uninstall`   |
+| 命令           | 描述                                           | 示例               |
+| -------------- | ---------------------------------------------- | ------------------ |
+| `wt config`    | 查看/修改项目设置                              | `wt config list`   |
+| `wt lang`      | 设置 CLI 语言（en/zh）                         | `wt lang set zh`   |
+| `wt theme`     | 切换 `wt list` 主题（`box`\|`sage`\|`archer`） | `wt theme set box` |
+| `wt help`      | 显示命令参考                                   | `wt help`          |
+| `wt reinstall` | 更新到最新版本                                 | `wt reinstall`     |
+| `wt uninstall` | 删除 worktree.sh                               | `wt uninstall`     |
 
 ## 高级功能
 

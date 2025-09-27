@@ -153,6 +153,148 @@ lang_prompt_interactive() {
   esac
 }
 
+theme_effective_code() {
+  local code="$LIST_THEME"
+  if [ -z "$code" ]; then
+    code="$CONFIG_DEFAULT_THEME"
+  fi
+  printf '%s\n' "$code"
+}
+
+theme_display_name() {
+  case "${1:-}" in
+  box)
+    printf 'box'
+    ;;
+  sage)
+    printf 'sage'
+    ;;
+  archer)
+    printf 'archer'
+    ;;
+  *)
+    printf '%s' "${1:-}"
+    ;;
+  esac
+}
+
+theme_store_global_value() {
+  if [ $# -ne 1 ]; then
+    return 1
+  fi
+
+  local code="$1"
+  local stored
+  stored=$(theme_code_to_config_value "$code")
+  config_set_in_file "$CONFIG_FILE_DEFAULT" "theme" "$stored"
+  LIST_THEME="$code"
+}
+
+theme_set_global_from_raw() {
+  if [ $# -ne 1 ]; then
+    die "$(msg theme_set_requires)"
+  fi
+
+  local raw="$1"
+  local normalized
+  if ! normalized=$(normalize_theme "$raw" 2> /dev/null); then
+    die "$(msg invalid_theme "$raw")"
+  fi
+
+  theme_store_global_value "$normalized"
+  return 0
+}
+
+theme_reset_global() {
+  theme_store_global_value "$CONFIG_DEFAULT_THEME"
+}
+
+theme_print_current_value() {
+  theme_effective_code
+}
+
+theme_show_current_message() {
+  local code
+  code=$(theme_effective_code)
+  local label
+  label=$(theme_display_name "$code")
+  info "$(msg theme_current "$label" "$code")"
+}
+
+theme_set_with_feedback() {
+  if theme_set_global_from_raw "$1"; then
+    local code
+    code=$(theme_effective_code)
+    local label
+    label=$(theme_display_name "$code")
+    info "$(msg theme_set_success "$label" "$code")"
+  fi
+}
+
+theme_reset_with_feedback() {
+  theme_reset_global
+  local code
+  code=$(theme_effective_code)
+  local label
+  label=$(theme_display_name "$code")
+  info "$(msg theme_reset_success "$label" "$code")"
+}
+
+theme_prompt_interactive() {
+  prompt_init_ui
+  if [ "$PROMPT_HAS_TTY" -ne 1 ]; then
+    theme_print_current_value
+    return
+  fi
+
+  local -a options=()
+  options+=("$(msg theme_option_box_label)|box|$(msg theme_option_box_hint)")
+  options+=("$(msg theme_option_sage_label)|sage|$(msg theme_option_sage_hint)")
+  options+=("$(msg theme_option_archer_label)|archer|$(msg theme_option_archer_hint)")
+  options+=("$(msg theme_option_reset_label)|__reset__|$(msg theme_option_reset_hint)")
+
+  local default_index=0
+  local current
+  current=$(theme_effective_code)
+  case "$current" in
+  sage)
+    default_index=1
+    ;;
+  archer)
+    default_index=2
+    ;;
+  box)
+    default_index=0
+    ;;
+  *)
+    default_index=0
+    ;;
+  esac
+
+  local previous_assume="$PROMPT_ASSUME_DEFAULTS"
+  PROMPT_ASSUME_DEFAULTS=0
+
+  local selection
+  if ! selection=$(prompt_choice "$(msg theme_prompt_select)" "$default_index" "${options[@]}"); then
+    PROMPT_ASSUME_DEFAULTS="$previous_assume"
+    die "$(msg aborted)"
+  fi
+
+  PROMPT_ASSUME_DEFAULTS="$previous_assume"
+
+  case "$selection" in
+  box | sage | archer)
+    theme_set_with_feedback "$selection"
+    ;;
+  __reset__)
+    theme_reset_with_feedback
+    ;;
+  *)
+    die "$(msg theme_unknown_command "$selection")"
+    ;;
+  esac
+}
+
 cmd_config() {
   local scope="$CURRENT_SCOPE"
   if [ $# -eq 0 ]; then
@@ -213,6 +355,19 @@ cmd_config() {
       fi
       return
     fi
+    if [ "$key" = "theme" ]; then
+      if [ "$stored_only" -eq 1 ]; then
+        local stored
+        if stored=$(config_file_get_value "$CONFIG_FILE_DEFAULT" "theme" 2> /dev/null); then
+          printf '%s\n' "$stored"
+        else
+          printf '%s\n' "$CONFIG_DEFAULT_THEME"
+        fi
+      else
+        theme_print_current_value
+      fi
+      return
+    fi
     local value
     if [ "$stored_only" -eq 1 ]; then
       if value=$(config_get "$key" 2> /dev/null); then
@@ -240,6 +395,10 @@ cmd_config() {
       lang_set_global_from_raw "$value"
       return
     fi
+    if [ "$key" = "theme" ]; then
+      theme_set_global_from_raw "$value"
+      return
+    fi
     if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -ne 1 ] && [ "$scope" != "project" ]; then
       die "$(msg command_requires_project)"
     fi
@@ -253,6 +412,10 @@ cmd_config() {
     local key="$1"
     if [ "$key" = "language" ]; then
       lang_reset_global
+      return
+    fi
+    if [ "$key" = "theme" ]; then
+      theme_reset_global
       return
     fi
     if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -ne 1 ] && [ "$scope" != "project" ]; then
@@ -288,6 +451,19 @@ cmd_config() {
         fi
         return
       fi
+      if [ "$key" = "theme" ]; then
+        if [ "$stored_only" -eq 1 ]; then
+          local stored
+          if stored=$(config_file_get_value "$CONFIG_FILE_DEFAULT" "theme" 2> /dev/null); then
+            printf '%s\n' "$stored"
+          else
+            printf '%s\n' "$CONFIG_DEFAULT_THEME"
+          fi
+        else
+          theme_print_current_value
+        fi
+        return
+      fi
       local value
       if [ "$stored_only" -eq 1 ]; then
         if value=$(config_get "$key" 2> /dev/null); then
@@ -307,6 +483,10 @@ cmd_config() {
       local value="$2"
       if [ "$key" = "language" ]; then
         lang_set_global_from_raw "$value"
+        return
+      fi
+      if [ "$key" = "theme" ]; then
+        theme_set_global_from_raw "$value"
         return
       fi
       if [ "$CONFIG_FILE_IS_ENV_OVERRIDE" -ne 1 ] && [ "$scope" != "project" ]; then
@@ -466,6 +646,43 @@ cmd_lang() {
     ;;
   *)
     die "$(msg lang_unknown_command "$1")"
+    ;;
+  esac
+}
+
+cmd_theme() {
+  if [ $# -eq 0 ]; then
+    prompt_init_ui
+    if [ "$PROMPT_HAS_TTY" -eq 1 ]; then
+      theme_prompt_interactive
+    else
+      theme_print_current_value
+    fi
+    return
+  fi
+
+  case "$1" in
+  help | --help | -h)
+    msg theme_usage
+    ;;
+  get | --get)
+    theme_print_current_value
+    ;;
+  set | --set)
+    shift || die "$(msg theme_set_requires)"
+    if [ $# -ne 1 ]; then
+      die "$(msg theme_set_requires)"
+    fi
+    theme_set_with_feedback "$1"
+    ;;
+  reset | --reset)
+    theme_reset_with_feedback
+    ;;
+  box | sage | archer)
+    theme_set_with_feedback "$1"
+    ;;
+  *)
+    die "$(msg theme_unknown_command "$1")"
     ;;
   esac
 }
@@ -2267,6 +2484,10 @@ wt_main() {
     ;;
   lang)
     cmd_lang "$@"
+    return
+    ;;
+  theme)
+    cmd_theme "$@"
     return
     ;;
   shell-hook)

@@ -14,7 +14,7 @@ worktree.sh は git worktree の面倒なセットアップを自動化します
 
 ### 最適な用途
 
-- **AI駆動開発** — Codex と Claude Code のための隔離されたサンドボックス
+- **AI 駆動開発** — Codex と Claude Code のための隔離されたサンドボックス
 - **並列開発** — ブランチ切り替えなしで複数の機能を開発
 - **クイック実験** — 安全で使い捨て可能な環境
 - **コードレビュー** — メイン作業を中断せずにPRをレビュー
@@ -98,7 +98,8 @@ wt rm 3000
 | コマンド       | 説明                        | 例               |
 | -------------- | --------------------------- | ---------------- |
 | `wt config`    | プロジェクト設定を表示/変更    | `wt config list` |
-| `wt lang`      | CLI言語を設定 (en/zh)        | `wt lang set zh` |
+| `wt lang`      | CLI 言語を設定 (en/zh)        | `wt lang set zh` |
+| `wt theme`     | `wt list` のテーマを切り替え (`box`\|`sage`\|`archer`) | `wt theme set box` |
 | `wt help`      | コマンドリファレンスを表示     | `wt help`        |
 | `wt reinstall` | 最新バージョンに更新          | `wt reinstall`   |
 | `wt uninstall` | worktree.sh を削除           | `wt uninstall`   |
