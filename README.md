@@ -187,11 +187,14 @@ wt reinstall    # Update to latest version
 ### Uninstalling
 
 ```bash
-wt uninstall    # Or use the uninstall script:
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
+wt uninstall
 ```
 
-Uninstall backs up your configuration to `~/.worktree.sh.backup.<timestamp>`.
+Or use the uninstall script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
+```
 
 ---
 

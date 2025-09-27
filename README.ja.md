@@ -187,11 +187,14 @@ wt reinstall    # 最新バージョンに更新
 ### アンインストール
 
 ```bash
-wt uninstall    # またはアンインストールスクリプトを使用：
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
+wt uninstall
 ```
 
-アンインストールは設定を `~/.worktree.sh.backup.<timestamp>` にバックアップします。
+またはアンインストールスクリプトを使用：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
+```
 
 ---
 

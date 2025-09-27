@@ -187,11 +187,14 @@ wt reinstall    # 更新到最新版本
 ### 卸载
 
 ```bash
-wt uninstall    # 或使用卸载脚本：
-curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
+wt uninstall
 ```
 
-卸载会将您的配置备份到 `~/.worktree.sh.backup.<timestamp>`。
+或使用卸载脚本：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/notdp/worktree.sh/main/uninstall.sh | bash
+```
 
 ---
 
