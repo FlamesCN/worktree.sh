@@ -627,7 +627,7 @@ tty_menu_select() {
   local typed=""
   local error_message=""
   local last_lines=0
-  local read_timeout_short=0
+  local read_timeout_short=1
   local highlight_start=$'\033[36m'
   local highlight_end=$'\033[0m'
   if [ -n "${BASH_VERSINFO+x}" ]; then
@@ -694,25 +694,46 @@ tty_menu_select() {
         printf '\n' >&2
         return 1
       fi
-      if [ "$key2" = "[" ]; then
+
+      case "$key2" in
+      '[')
         local key3=""
-        if ! IFS= read -rsn1 -t "$read_timeout_short" key3; then
-          continue
+        if IFS= read -rsn1 -t "$read_timeout_short" key3; then
+          case "$key3" in
+          A)
+            selected=$(((selected - 1 + count) % count))
+            typed=""
+            ;;
+          B)
+            selected=$(((selected + 1) % count))
+            typed=""
+            ;;
+          esac
         fi
-        case "$key3" in
-        A)
-          selected=$(((selected - 1 + count) % count))
-          typed=""
-          ;;
-        B)
-          selected=$(((selected + 1) % count))
-          typed=""
-          ;;
-        esac
-      else
+        ;;
+      O)
+        local key3=""
+        if IFS= read -rsn1 -t "$read_timeout_short" key3; then
+          case "$key3" in
+          A)
+            selected=$(((selected - 1 + count) % count))
+            typed=""
+            ;;
+          B)
+            selected=$(((selected + 1) % count))
+            typed=""
+            ;;
+          esac
+        fi
+        ;;
+      $'\x1b')
         printf '\n' >&2
         return 1
-      fi
+        ;;
+      *)
+        :
+        ;;
+      esac
       ;;
     $'\177')
       if [ -n "$typed" ]; then
@@ -1390,7 +1411,8 @@ prompt_choice() {
       $'\x1b')
         local key2=""
         if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key2; then
-          if [ "$key2" = "[" ]; then
+          case "$key2" in
+          '[')
             local key3=""
             if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key3; then
               case "$key3" in
@@ -1401,18 +1423,42 @@ prompt_choice() {
                 selected=$(((selected + 1) % count))
                 ;;
               *)
-                cancel_menu=1
-                exit_menu=1
+                :
                 ;;
               esac
             else
               cancel_menu=1
               exit_menu=1
             fi
-          else
+            ;;
+          O)
+            local key3=""
+            if IFS= read -rsn1 -t "$PROMPT_READ_TIMEOUT_SHORT" key3; then
+              case "$key3" in
+              A)
+                selected=$(((selected - 1 + count) % count))
+                ;;
+              B)
+                selected=$(((selected + 1) % count))
+                ;;
+              *)
+                :
+                ;;
+              esac
+            else
+              cancel_menu=1
+              exit_menu=1
+            fi
+            ;;
+          $'\x1b')
             cancel_menu=1
             exit_menu=1
-          fi
+            ;;
+          *)
+            cancel_menu=1
+            exit_menu=1
+            ;;
+          esac
         else
           cancel_menu=1
           exit_menu=1

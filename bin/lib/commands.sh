@@ -277,7 +277,7 @@ theme_prompt_interactive() {
   local selection
   if ! selection=$(prompt_choice "$(msg theme_prompt_select)" "$default_index" "${options[@]}"); then
     PROMPT_ASSUME_DEFAULTS="$previous_assume"
-    die "$(msg aborted)"
+    die "$(msg theme_selection_cancelled)"
   fi
 
   PROMPT_ASSUME_DEFAULTS="$previous_assume"

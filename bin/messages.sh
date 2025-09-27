@@ -196,6 +196,9 @@ msg_en() {
   theme_prompt_select)
     printf 'Select a theme for wt list output:'
     ;;
+  theme_selection_cancelled)
+    printf 'Theme selection cancelled'
+    ;;
   theme_unknown_command)
     printf 'unknown theme command: %s' "$1"
     ;;
@@ -997,6 +1000,9 @@ msg_zh() {
     ;;
   theme_prompt_select)
     printf '选择 wt list 输出的主题：'
+    ;;
+  theme_selection_cancelled)
+    printf '已取消主题选择'
     ;;
   theme_unknown_command)
     printf '未知主题命令：%s' "$1"
