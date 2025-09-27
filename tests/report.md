@@ -34,6 +34,7 @@
 | `wt config list` | ⚠️ Expected refusal | Exits 1: `wt: This command must be run inside a configured project`.
 | `wt config get repo.path` | ✅ | Returned default placeholder `/Users/notdp/Developer/your-project`.
 | `wt config set language zh` | ⚠️ Expected refusal | Correctly refused because command requires project scope.
+| `wt` | ⚠️ Expected refusal | Alias for `wt list`; prompted to run `wt init` because scope was unconfigured.
 | `wt list` | ⚠️ Expected refusal | Prompted to run `wt init` since scope was unconfigured.
 | `wt reinstall` | ✅ | Chained repo `uninstall.sh` and `install.sh`, refreshing `~/.local/bin` in place.
 | `wt reinstall --help` | ✅ | Displayed usage text.

@@ -75,7 +75,7 @@ wt rm 3000
 | `wt add <name>`   | 创建完全配置的 worktree    | `wt add 3000`   |
 | `wt <name>`       | 导航到 worktree            | `wt 3000`       |
 | `wt main`         | 返回主仓库                 | `wt main`       |
-| `wt list`         | 显示所有 worktree          | `wt list`       |
+| `wt list` (`wt`)  | 显示所有 worktree          | `wt list`       |
 | `wt merge <name>` | 将功能分支合并回来         | `wt merge 3000` |
 
 ### 同步

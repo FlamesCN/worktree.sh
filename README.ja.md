@@ -75,7 +75,7 @@ wt rm 3000
 | `wt add <name>`   | 完全に構成された worktree を作成           | `wt add 3000`   |
 | `wt <name>`       | worktree へ移動                           | `wt 3000`       |
 | `wt main`         | メインリポジトリへ戻る                      | `wt main`       |
-| `wt list`         | すべての worktree を表示                   | `wt list`       |
+| `wt list` (`wt`)  | すべての worktree を表示                   | `wt list`       |
 | `wt merge <name>` | 機能ブランチをマージ                        | `wt merge 3000` |
 
 ### 同期

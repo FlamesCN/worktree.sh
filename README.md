@@ -75,7 +75,7 @@ wt rm 3000
 | `wt add <name>`   | Create fully configured worktree           | `wt add 3000`   |
 | `wt <name>`       | Navigate to worktree                       | `wt 3000`       |
 | `wt main`         | Return to main repository                  | `wt main`       |
-| `wt list`         | Show all worktrees                         | `wt list`       |
+| `wt list` (`wt`)  | Show all worktrees                         | `wt list`       |
 | `wt merge <name>` | Merge feature branch back                  | `wt merge 3000` |
 
 ### Synchronization

@@ -9,6 +9,10 @@
 
 ## Scenario A: 0 projects configured (before running `wt init`)
 
+- `wt`
+  - expected: refuse because no project is configured yet
+  - observed: `wt: wt is not configured yet; run "wt init" inside your repository first`; exit 1
+  - status: PASS
 - `wt help`
   - expected: show usage without project context
   - observed: help text plus "Project directory: not set" banner; exit 0
@@ -52,8 +56,8 @@
   - expected: jump directly to the lone project
   - observed: printed `/Users/notdp/Developer/worktree.sh`; exit 0
   - status: PASS
-- `wt list` (run from `$HOME`)
-  - expected: list worktrees for this project
+- `wt` (run from `$HOME`)
+  - expected: list worktrees for this project (alias of `wt list`)
   - observed: printed project header plus existing worktrees; exit 0
   - status: PASS (note: header still shown even in single-project mode)
 - `wt add testone` (run inside repo)

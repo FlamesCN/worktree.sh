@@ -2467,7 +2467,7 @@ wt_main() {
   done
 
   if [ $# -eq 0 ]; then
-    command="help"
+    command="list"
   else
     command="$1"
     shift || true
