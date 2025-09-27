@@ -509,7 +509,7 @@ LANG_USAGE_EN
     printf 'Remove numeric worktree %s from project %s (%s)? [Y/n]' "$1" "$2" "$3"
     ;;
   select_navigation_hint)
-    printf '(Use ↑/↓ or j/k to move, Enter to confirm, Esc to cancel. Digits jump directly.)'
+    printf '(Use ↑/↓ or j/k to move, Enter to confirm, Ctrl+C to cancel. Digits jump directly.)'
     ;;
   prompt_yes_label)
     printf 'Yes'
@@ -518,7 +518,7 @@ LANG_USAGE_EN
     printf 'No'
     ;;
   prompt_choice_hint)
-    printf '%s' '- Use arrow keys. Enter to confirm, Esc to cancel.'
+    printf '%s' '- Use arrow keys. Enter to confirm, Ctrl+C to cancel.'
     ;;
   prompt_default_hint)
     printf 'Default (press Enter to keep): %s' "$1"
@@ -1329,7 +1329,7 @@ LANG_USAGE_ZH
     printf '更新配置失败'
     ;;
   select_navigation_hint)
-    printf '（使用 ↑/↓ 或 j/k 移动，Enter 确认，Esc 取消；也可直接输入数字跳转。）'
+    printf '（使用 ↑/↓ 或 j/k 移动，Enter 确认，Ctrl+C 取消；也可直接输入数字跳转。）'
     ;;
   prompt_yes_label)
     printf 'Yes'
@@ -1338,7 +1338,7 @@ LANG_USAGE_ZH
     printf 'No'
     ;;
   prompt_choice_hint)
-    printf '%s' '- 使用方向键选择，回车确认，Esc 取消。'
+    printf '%s' '- 使用方向键选择，回车确认，Ctrl+C 取消。'
     ;;
   prompt_default_hint)
     printf '默认值（按回车保留）：%s' "$1"
