@@ -3299,6 +3299,539 @@ command_slug_from_line() {
   printf '%s' "$slug"
 }
 
+# Python 工具检测 - 使用严格的判据避免误判
+detect_python_tool() {
+  local project_path="${1:?project path required}"
+
+  # uv - 需要 uv.lock 或 pyproject.toml 中的 [tool.uv]
+  if [ -f "$project_path/uv.lock" ]; then
+    echo "uv"
+    return 0
+  fi
+  if [ -f "$project_path/pyproject.toml" ] && grep -Eq '^[[:space:]]*\[tool\.uv\]' "$project_path/pyproject.toml" 2> /dev/null; then
+    echo "uv"
+    return 0
+  fi
+
+  # rye - 需要 rye 特定文件
+  if [ -f "$project_path/rye.lock" ] || [ -f "$project_path/.rye/config.toml" ]; then
+    echo "rye"
+    return 0
+  fi
+
+  # poetry - 需要 poetry.lock 或 pyproject.toml 中的 [tool.poetry]
+  if [ -f "$project_path/poetry.lock" ]; then
+    echo "poetry"
+    return 0
+  fi
+  if [ -f "$project_path/pyproject.toml" ] && grep -Eq '^[[:space:]]*\[tool\.poetry\]' "$project_path/pyproject.toml" 2> /dev/null; then
+    echo "poetry"
+    return 0
+  fi
+
+  # pdm - 需要 pdm 特定文件
+  if [ -f "$project_path/pdm.lock" ] || [ -f "$project_path/.pdm.toml" ]; then
+    echo "pdm"
+    return 0
+  fi
+  if [ -f "$project_path/pyproject.toml" ] && grep -Eq '^[[:space:]]*\[tool\.pdm\]' "$project_path/pyproject.toml" 2> /dev/null; then
+    echo "pdm"
+    return 0
+  fi
+
+  # pipenv - 需要 Pipfile 或 Pipfile.lock
+  if [ -f "$project_path/Pipfile.lock" ] || [ -f "$project_path/Pipfile" ]; then
+    echo "pipenv"
+    return 0
+  fi
+
+  # hatch - 需要 hatch.toml 或 pyproject.toml 中的 [tool.hatch]
+  if [ -f "$project_path/hatch.toml" ]; then
+    echo "hatch"
+    return 0
+  fi
+  if [ -f "$project_path/pyproject.toml" ] && grep -Eq '^[[:space:]]*\[tool\.hatch\]' "$project_path/pyproject.toml" 2> /dev/null; then
+    echo "hatch"
+    return 0
+  fi
+
+  # conda - 需要环境定义文件或已创建的 conda 环境目录
+  if find_conda_env_file "$project_path" > /dev/null; then
+    echo "conda"
+    return 0
+  fi
+  if [ -d "$project_path/conda-meta" ]; then
+    echo "conda"
+    return 0
+  fi
+  local conda_prefix
+  for conda_prefix in ".conda" "env" "venv" ".venv"; do
+    if [ -d "$project_path/$conda_prefix/conda-meta" ]; then
+      echo "conda"
+      return 0
+    fi
+  done
+
+  # pip - 作为默认回退，但需要有 Python 项目标志文件
+  if [ -f "$project_path/requirements.txt" ] || [ -f "$project_path/setup.py" ] || [ -f "$project_path/setup.cfg" ]; then
+    echo "pip"
+    return 0
+  fi
+  # pyproject.toml 但没有特定工具配置时也使用 pip
+  if [ -f "$project_path/pyproject.toml" ]; then
+    echo "pip"
+    return 0
+  fi
+
+  return 1
+}
+
+# Python 框架检测 - 优化文件检测逻辑
+detect_python_framework() {
+  local project_path="${1:?project path required}"
+
+  # Django - 检测 manage.py
+  if [ -f "$project_path/manage.py" ]; then
+    echo "django"
+    return 0
+  fi
+
+  # FastAPI - 检查根目录和常见子目录
+  local fastapi_locations=("main.py" "app.py" "app/main.py" "src/main.py" "api/main.py" "app/app.py" "src/app.py")
+  local location
+  for location in "${fastapi_locations[@]}"; do
+    if [ -f "$project_path/$location" ]; then
+      if grep -qi "fastapi" "$project_path/$location" 2> /dev/null; then
+        echo "fastapi"
+        return 0
+      fi
+    fi
+  done
+
+  # Flask - 检查根目录和常见子目录
+  local flask_locations=("app.py" "application.py" "app/app.py" "src/app.py" "app/application.py" "src/application.py")
+  for location in "${flask_locations[@]}"; do
+    if [ -f "$project_path/$location" ]; then
+      if grep -qi "flask" "$project_path/$location" 2> /dev/null; then
+        echo "flask"
+        return 0
+      fi
+    fi
+  done
+
+  # Streamlit - 更高效的文件检测
+  local py_file
+  for py_file in "$project_path"/*.py; do
+    if [ -f "$py_file" ]; then
+      if grep -qi "streamlit" "$py_file" 2> /dev/null; then
+        echo "streamlit"
+        return 0
+      fi
+    fi
+  done
+
+  # Jupyter - 简单检查 .ipynb 文件存在
+  local nb_file
+  for nb_file in "$project_path"/*.ipynb; do
+    if [ -f "$nb_file" ]; then
+      echo "jupyter"
+      return 0
+    fi
+  done
+
+  # 通用 Python 应用
+  if [ -f "$project_path/app.py" ] || [ -f "$project_path/main.py" ]; then
+    echo "python"
+    return 0
+  fi
+
+  return 1
+}
+
+# 检测 Python 虚拟环境
+detect_python_venv() {
+  local project_path="${1:?project path required}"
+
+  # 常见的虚拟环境目录
+  for venv in ".venv" "venv" "env" ".env"; do
+    if [ -d "$project_path/$venv" ] && [ -f "$project_path/$venv/bin/python" ]; then
+      echo "$venv"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+find_conda_env_file() {
+  local project_path="${1:?project path required}"
+  local candidates=(
+    "environment.yml"
+    "environment.yaml"
+    "environment.lock.yml"
+    "environment.lock.yaml"
+    "conda.yml"
+    "conda.yaml"
+    "conda-lock.yml"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [ -f "$project_path/$candidate" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+detect_conda_env_name() {
+  local project_path="${1:?project path required}"
+  local env_file
+
+  if ! env_file=$(find_conda_env_file "$project_path"); then
+    return 1
+  fi
+
+  local name_line
+  name_line=$(grep -E '^[[:space:]]*name:' "$project_path/$env_file" | head -n 1)
+  if [ -z "$name_line" ]; then
+    return 1
+  fi
+
+  name_line=${name_line#*:}
+  name_line=$(printf '%s\n' "$name_line" | sed -E 's/^[[:space:]]*//; s/[[:space:]]*(#.*)?$//')
+  # 去除包裹的引号
+  name_line=${name_line%\"}
+  name_line=${name_line#\"}
+  name_line=${name_line%\'}
+  name_line=${name_line#\'}
+
+  if [ -n "$name_line" ]; then
+    printf '%s\n' "$name_line"
+    return 0
+  fi
+
+  return 1
+}
+
+detect_conda_env_prefix() {
+  local project_path="${1:?project path required}"
+  local env_file
+
+  if env_file=$(find_conda_env_file "$project_path"); then
+    local prefix_line
+    prefix_line=$(grep -E '^[[:space:]]*prefix:' "$project_path/$env_file" | head -n 1)
+    if [ -n "$prefix_line" ]; then
+      prefix_line=${prefix_line#*:}
+      prefix_line=$(printf '%s\n' "$prefix_line" | sed -E 's/^[[:space:]]*//; s/[[:space:]]*(#.*)?$//')
+      prefix_line=${prefix_line%\"}
+      prefix_line=${prefix_line#\"}
+      prefix_line=${prefix_line%\'}
+      prefix_line=${prefix_line#\'}
+      if [ -n "$prefix_line" ]; then
+        printf '%s\n' "$prefix_line"
+        return 0
+      fi
+    fi
+  fi
+
+  # 检查常见的项目内 conda 环境目录
+  if [ -d "$project_path/conda-meta" ]; then
+    printf '%s\n' "$project_path"
+    return 0
+  fi
+
+  local candidate
+  for candidate in ".conda" "env" "venv" ".venv"; do
+    if [ -d "$project_path/$candidate/conda-meta" ]; then
+      printf '%s\n' "$project_path/$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# 查找 Python 应用入口文件
+# 返回相对于项目根目录的路径，用于生成正确的 uvicorn 命令
+find_python_app_entry() {
+  local project_path="${1:?project path required}"
+  local framework="${2:-}"
+
+  case "$framework" in
+  fastapi)
+    # FastAPI 常见位置
+    local locations=("main.py" "app.py" "app/main.py" "src/main.py" "api/main.py" "app/app.py" "src/app.py")
+    local location
+    for location in "${locations[@]}"; do
+      if [ -f "$project_path/$location" ]; then
+        if grep -qi "fastapi" "$project_path/$location" 2> /dev/null; then
+          echo "$location"
+          return 0
+        fi
+      fi
+    done
+    ;;
+  flask)
+    # Flask 常见位置
+    local locations=("app.py" "application.py" "app/app.py" "src/app.py")
+    for location in "${locations[@]}"; do
+      if [ -f "$project_path/$location" ]; then
+        if grep -qi "flask" "$project_path/$location" 2> /dev/null; then
+          echo "$location"
+          return 0
+        fi
+      fi
+    done
+    ;;
+  *)
+    # 通用 Python 应用
+    if [ -f "$project_path/main.py" ]; then
+      echo "main.py"
+      return 0
+    elif [ -f "$project_path/app.py" ]; then
+      echo "app.py"
+      return 0
+    elif [ -f "$project_path/app/main.py" ]; then
+      echo "app/main.py"
+      return 0
+    elif [ -f "$project_path/src/main.py" ]; then
+      echo "src/main.py"
+      return 0
+    fi
+    ;;
+  esac
+
+  return 1
+}
+
+# 辅助函数：为传统虚拟环境生成命令
+# 确保命令能在 sh -c 下正确解析，正确处理包含空格的路径
+wrap_venv_command() {
+  local venv_path="${1:?venv path required}"
+  local command="${2:?command required}"
+
+  # 检查命令类型，决定如何包装
+  case "$command" in
+  python*)
+    # Python 命令：使用虚拟环境中的 python，正确引用路径
+    # 替换第一个 python 为虚拟环境路径（引用以处理空格）
+    local rest="${command#python}"
+    echo "\"${venv_path}/bin/python\"${rest}"
+    ;;
+  flask* | streamlit* | uvicorn* | jupyter* | pip*)
+    # 这些工具：使用虚拟环境中的版本
+    local tool="${command%% *}"
+    local args="${command#* }"
+    if [ "$tool" = "$command" ]; then
+      # 没有参数
+      echo "\"${venv_path}/bin/${tool}\""
+    else
+      # 有参数
+      echo "\"${venv_path}/bin/${tool}\" $args"
+    fi
+    ;;
+  *)
+    # 其他命令：保持原样
+    echo "$command"
+    ;;
+  esac
+}
+
+# 辅助函数：生成激活虚拟环境并执行命令的字符串
+# 用于需要 source 激活的场景（如安装命令）
+# 使用 POSIX 兼容的 . 命令而不是 source，确保在 sh -c 下能正确执行
+venv_activate_and_run() {
+  local venv_path="${1:?venv path required}"
+  local command="${2:?command required}"
+
+  # 使用 . 而不是 source（POSIX 兼容），并正确引用路径以处理空格
+  echo ". \"${venv_path}/bin/activate\" && $command"
+}
+
+# 生成 Python 服务命令（包含虚拟环境处理）
+generate_python_serve_cmd() {
+  local project_path="${1:?project path required}"
+  local tool="${2:?tool required}"
+  local framework="${3:?framework required}"
+  local venv_path="${4:-}"
+
+  # 基础命令
+  local base_cmd=""
+  case "$framework" in
+  django)
+    base_cmd="python manage.py runserver"
+    ;;
+  fastapi)
+    # 查找 FastAPI 应用入口文件
+    local app_entry
+    if app_entry=$(find_python_app_entry "$project_path" "fastapi"); then
+      # 转换文件路径为模块路径（例如 app/main.py -> app.main:app）
+      local module_path="${app_entry%.py}" # 移除 .py 后缀
+      module_path="${module_path//\//.}"   # 替换 / 为 .
+      base_cmd="uvicorn ${module_path}:app --reload"
+    else
+      # 默认尝试常见的位置
+      base_cmd="uvicorn main:app --reload"
+    fi
+    ;;
+  flask)
+    base_cmd="flask run --debug"
+    ;;
+  streamlit)
+    for file in app.py main.py streamlit_app.py; do
+      if [ -f "$project_path/$file" ]; then
+        base_cmd="streamlit run $file"
+        break
+      fi
+    done
+    ;;
+  jupyter)
+    base_cmd="jupyter lab"
+    ;;
+  *)
+    # 通用 Python 脚本
+    local app_entry
+    if app_entry=$(find_python_app_entry "$project_path" ""); then
+      base_cmd="python $app_entry"
+    fi
+    ;;
+  esac
+
+  # 根据工具添加虚拟环境处理
+  case "$tool" in
+  uv)
+    echo "uv run $base_cmd"
+    ;;
+  rye)
+    echo "rye run $base_cmd"
+    ;;
+  conda)
+    local run_cmd="conda run --live-stream"
+    local env_name
+    local env_prefix
+    if env_name=$(detect_conda_env_name "$project_path"); then
+      run_cmd="$run_cmd -n \"$env_name\""
+    else
+      if env_prefix=$(detect_conda_env_prefix "$project_path"); then
+        run_cmd="$run_cmd --prefix \"$env_prefix\""
+      fi
+    fi
+
+    if [ -n "$base_cmd" ]; then
+      echo "$run_cmd $base_cmd"
+    else
+      echo "$run_cmd"
+    fi
+    ;;
+  poetry)
+    echo "poetry run $base_cmd"
+    ;;
+  pdm)
+    echo "pdm run $base_cmd"
+    ;;
+  pipenv)
+    echo "pipenv run $base_cmd"
+    ;;
+  hatch)
+    echo "hatch run $base_cmd"
+    ;;
+  pip)
+    # 使用传统虚拟环境
+    if [ -n "$venv_path" ]; then
+      wrap_venv_command "$venv_path" "$base_cmd"
+    else
+      # 如果没有虚拟环境，返回原始命令
+      echo "$base_cmd"
+    fi
+    ;;
+  *)
+    echo "$base_cmd"
+    ;;
+  esac
+}
+
+# 生成 Python 安装命令（确保创建并激活虚拟环境）
+generate_python_install_cmd() {
+  local project_path="${1:?project path required}"
+  local tool="${2:?tool required}"
+  local has_venv="${3:-0}"
+
+  case "$tool" in
+  uv)
+    if [ "$has_venv" -eq 0 ]; then
+      # uv 会自动创建和使用 .venv
+      echo "uv venv && uv sync"
+    else
+      echo "uv sync"
+    fi
+    ;;
+  rye)
+    # rye 自动管理虚拟环境
+    echo "rye sync"
+    ;;
+  conda)
+    local env_file
+    if env_file=$(find_conda_env_file "$project_path"); then
+      echo "conda env update --file $env_file --prune || conda env create --file $env_file"
+    else
+      return 1
+    fi
+    ;;
+  poetry)
+    # poetry 自动创建和管理虚拟环境
+    if [ -f "$project_path/poetry.lock" ]; then
+      echo "poetry install --sync"
+    else
+      echo "poetry install"
+    fi
+    ;;
+  pdm)
+    # pdm 自动管理虚拟环境
+    if [ -f "$project_path/pdm.lock" ]; then
+      echo "pdm install --frozen-lockfile"
+    else
+      echo "pdm install"
+    fi
+    ;;
+  pipenv)
+    # pipenv 自动管理虚拟环境
+    if [ -f "$project_path/Pipfile.lock" ]; then
+      echo "pipenv install --deploy"
+    else
+      echo "pipenv install"
+    fi
+    ;;
+  hatch)
+    # hatch 使用自己的环境管理
+    echo "hatch env create"
+    ;;
+  pip)
+    # 确定安装命令
+    local install_cmd=""
+    if [ -f "$project_path/requirements.txt" ]; then
+      install_cmd="pip install -r requirements.txt"
+    elif [ -f "$project_path/pyproject.toml" ]; then
+      install_cmd="pip install -e ."
+    fi
+
+    if [ -n "$install_cmd" ]; then
+      if [ "$has_venv" -eq 0 ]; then
+        # 创建虚拟环境并安装
+        echo "python -m venv .venv && $(venv_activate_and_run ".venv" "$install_cmd")"
+      else
+        # 在现有虚拟环境中安装
+        local venv_path
+        venv_path=$(detect_python_venv "$project_path")
+        venv_activate_and_run "$venv_path" "$install_cmd"
+      fi
+    fi
+    ;;
+  esac
+}
+
 infer_install_command() {
   local worktree_path="${1:?worktree path is required}"
 
@@ -3326,24 +3859,19 @@ infer_install_command() {
     return 0
   fi
 
-  if [ -f "$worktree_path/poetry.lock" ]; then
-    printf 'poetry install\n'
-    return 0
-  fi
+  # Python 项目检测和安装命令生成
+  local python_tool
+  if python_tool=$(detect_python_tool "$worktree_path"); then
+    local has_venv=0
+    if detect_python_venv "$worktree_path" > /dev/null; then
+      has_venv=1
+    fi
 
-  if [ -f "$worktree_path/Pipfile" ]; then
-    printf 'pipenv install\n'
-    return 0
-  fi
-
-  if [ -f "$worktree_path/requirements.txt" ]; then
-    printf 'pip install -r requirements.txt\n'
-    return 0
-  fi
-
-  if [ -f "$worktree_path/pyproject.toml" ]; then
-    printf 'pip install -e .\n'
-    return 0
+    local install_cmd
+    if install_cmd=$(generate_python_install_cmd "$worktree_path" "$python_tool" "$has_venv"); then
+      printf '%s\n' "$install_cmd"
+      return 0
+    fi
   fi
 
   return 1
@@ -3378,13 +3906,32 @@ infer_serve_command() {
     fi
   fi
 
+  # Python 项目检测和服务命令生成
+  local python_tool
+  local python_framework
+  if python_tool=$(detect_python_tool "$worktree_path"); then
+    if python_framework=$(detect_python_framework "$worktree_path"); then
+      local venv_path=""
+      if detect_python_venv "$worktree_path" > /dev/null; then
+        venv_path="$worktree_path/$(detect_python_venv "$worktree_path")"
+      fi
+
+      local serve_cmd
+      if serve_cmd=$(generate_python_serve_cmd "$worktree_path" "$python_tool" "$python_framework" "$venv_path"); then
+        printf '%s\n' "$serve_cmd"
+        return 0
+      fi
+    fi
+  fi
+
   if [ -f "$worktree_path/manage.py" ]; then
     printf 'python manage.py runserver\n'
     return 0
   fi
 
-  if [ -f "$worktree_path/pyproject.toml" ] && [ -f "$worktree_path/app.py" ]; then
-    printf 'python app.py\n'
+  local fallback_entry
+  if fallback_entry=$(find_python_app_entry "$worktree_path" 2> /dev/null); then
+    printf 'python %s\n' "$fallback_entry"
     return 0
   fi
 

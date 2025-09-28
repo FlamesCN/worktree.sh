@@ -271,6 +271,21 @@ LANG_USAGE_EN
   init_install_option_pipenv_install_hint)
     printf 'Python projects using Pipenv'
     ;;
+  init_install_option_pdm_install_hint)
+    printf 'Python projects using PDM'
+    ;;
+  init_install_option_rye_install_hint)
+    printf 'Python projects using Rye'
+    ;;
+  init_install_option_hatch_install_hint)
+    printf 'Python projects using Hatch'
+    ;;
+  init_install_option_conda_hint)
+    printf 'Python projects using Conda environment files'
+    ;;
+  init_install_option_pip_create_venv_hint)
+    printf 'Creates a virtualenv and installs dependencies'
+    ;;
   init_install_option_pip_requirements_hint)
     printf 'Installs from requirements.txt'
     ;;
@@ -312,6 +327,27 @@ LANG_USAGE_EN
     ;;
   init_serve_option_uv_run_hint)
     printf 'uv run (Python dev server)'
+    ;;
+  init_serve_option_poetry_run_hint)
+    printf 'poetry run (manages virtualenv automatically)'
+    ;;
+  init_serve_option_pipenv_run_hint)
+    printf 'pipenv run (manages virtualenv automatically)'
+    ;;
+  init_serve_option_pdm_run_hint)
+    printf 'pdm run (manages virtualenv automatically)'
+    ;;
+  init_serve_option_rye_run_hint)
+    printf 'rye run (manages virtualenv automatically)'
+    ;;
+  init_serve_option_hatch_run_hint)
+    printf 'hatch run (manages virtualenv automatically)'
+    ;;
+  init_serve_option_conda_hint)
+    printf 'conda run (uses the Conda environment)'
+    ;;
+  init_serve_option_pip_venv_hint)
+    printf 'Use commands from the project virtualenv'
     ;;
   init_serve_option_manage_runserver_hint)
     printf 'Django manage.py runserver'
@@ -1076,6 +1112,21 @@ LANG_USAGE_ZH
   init_install_option_pipenv_install_hint)
     printf '适用于 Pipenv 项目'
     ;;
+  init_install_option_pdm_install_hint)
+    printf '适用于 PDM 项目'
+    ;;
+  init_install_option_rye_install_hint)
+    printf '适用于 Rye 项目'
+    ;;
+  init_install_option_hatch_install_hint)
+    printf '适用于 Hatch 项目'
+    ;;
+  init_install_option_conda_hint)
+    printf '适用于提供 Conda 环境文件的 Python 项目'
+    ;;
+  init_install_option_pip_create_venv_hint)
+    printf '创建虚拟环境并安装依赖'
+    ;;
   init_install_option_pip_requirements_hint)
     printf 'pip install -r requirements.txt'
     ;;
@@ -1117,6 +1168,27 @@ LANG_USAGE_ZH
     ;;
   init_serve_option_uv_run_hint)
     printf 'uv run（Python 开发服务）'
+    ;;
+  init_serve_option_poetry_run_hint)
+    printf 'poetry run（自动处理虚拟环境）'
+    ;;
+  init_serve_option_pipenv_run_hint)
+    printf 'pipenv run（自动处理虚拟环境）'
+    ;;
+  init_serve_option_pdm_run_hint)
+    printf 'pdm run（自动处理虚拟环境）'
+    ;;
+  init_serve_option_rye_run_hint)
+    printf 'rye run（自动处理虚拟环境）'
+    ;;
+  init_serve_option_hatch_run_hint)
+    printf 'hatch run（自动处理虚拟环境）'
+    ;;
+  init_serve_option_conda_hint)
+    printf 'conda run（使用 Conda 环境）'
+    ;;
+  init_serve_option_pip_venv_hint)
+    printf '使用虚拟环境中的命令'
     ;;
   init_serve_option_manage_runserver_hint)
     printf 'Django manage.py runserver'

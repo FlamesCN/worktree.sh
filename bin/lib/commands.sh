@@ -1342,6 +1342,7 @@ INIT_USAGE_EN
     prompt_success_line "$(msg init_prompt_copy_env_files)" "$files_summary_display"
   fi
 
+  # shellcheck disable=SC2034
   local repo_has_package_json=0
   local repo_has_package_lock=0
   local repo_has_pnpm=0
@@ -1353,6 +1354,8 @@ INIT_USAGE_EN
   local repo_has_uv=0
   local repo_has_manage=0
   local repo_has_app=0
+  local repo_python_tool=""
+  local repo_python_framework=""
 
   if [ -f "$repo_path_selected/package.json" ]; then
     repo_has_package_json=1
@@ -1374,36 +1377,59 @@ INIT_USAGE_EN
   fi
 
   if [ -f "$repo_path_selected/Pipfile" ]; then
+    # shellcheck disable=SC2034
     repo_has_pipenv=1
   fi
 
   if [ -f "$repo_path_selected/requirements.txt" ]; then
+    # shellcheck disable=SC2034
     repo_has_requirements=1
   fi
 
   if [ -f "$repo_path_selected/poetry.lock" ]; then
+    # shellcheck disable=SC2034
     repo_has_poetry=1
   fi
 
   if [ -f "$repo_path_selected/pyproject.toml" ]; then
     if grep -qi '^[[:space:]]*\[tool\.poetry\]' "$repo_path_selected/pyproject.toml" 2> /dev/null; then
+      # shellcheck disable=SC2034
       repo_has_poetry=1
     fi
     if grep -qi '^[[:space:]]*\[tool\.uv\]' "$repo_path_selected/pyproject.toml" 2> /dev/null; then
+      # shellcheck disable=SC2034
       repo_has_uv=1
     fi
   fi
 
   if [ -f "$repo_path_selected/uv.lock" ]; then
+    # shellcheck disable=SC2034
     repo_has_uv=1
   fi
 
   if [ -f "$repo_path_selected/manage.py" ]; then
+    # shellcheck disable=SC2034
     repo_has_manage=1
   fi
 
   if [ -f "$repo_path_selected/app.py" ]; then
+    # shellcheck disable=SC2034
     repo_has_app=1
+  fi
+
+  # 使用新的 Python 检测函数
+  repo_python_tool=""
+  if repo_python_tool=$(detect_python_tool "$repo_path_selected" 2> /dev/null); then
+    :
+  else
+    repo_python_tool=""
+  fi
+
+  repo_python_framework=""
+  if repo_python_framework=$(detect_python_framework "$repo_path_selected" 2> /dev/null); then
+    :
+  else
+    repo_python_framework=""
   fi
 
   local package_has_dev=0
@@ -1443,17 +1469,50 @@ INIT_USAGE_EN
   if [ "$repo_has_bun" -eq 1 ]; then
     init_option_append_unique install_options 'bun install' 'bun install' "$(msg init_install_option_bun_install_hint)"
   fi
-  if [ "$repo_has_uv" -eq 1 ]; then
-    init_option_append_unique install_options 'uv sync' 'uv sync' "$(msg init_install_option_uv_sync_hint)"
-  fi
-  if [ "$repo_has_poetry" -eq 1 ]; then
-    init_option_append_unique install_options 'poetry install' 'poetry install' "$(msg init_install_option_poetry_install_hint)"
-  fi
-  if [ "$repo_has_pipenv" -eq 1 ]; then
-    init_option_append_unique install_options 'pipenv install' 'pipenv install' "$(msg init_install_option_pipenv_install_hint)"
-  fi
-  if [ "$repo_has_requirements" -eq 1 ]; then
-    init_option_append_unique install_options 'pip install -r requirements.txt' 'pip install -r requirements.txt' "$(msg init_install_option_pip_requirements_hint)"
+  # Python 项目的安装命令选项
+  if [ -n "$repo_python_tool" ]; then
+    local has_venv=0
+    if detect_python_venv "$repo_path_selected" > /dev/null; then
+      has_venv=1
+    fi
+
+    local install_cmd
+    if install_cmd=$(generate_python_install_cmd "$repo_path_selected" "$repo_python_tool" "$has_venv"); then
+      # 生成友好的提示文本
+      local install_hint=""
+      case "$repo_python_tool" in
+      uv)
+        install_hint="$(msg init_install_option_uv_sync_hint)"
+        ;;
+      poetry)
+        install_hint="$(msg init_install_option_poetry_install_hint)"
+        ;;
+      pipenv)
+        install_hint="$(msg init_install_option_pipenv_install_hint)"
+        ;;
+      pdm)
+        install_hint="$(msg init_install_option_pdm_install_hint)"
+        ;;
+      rye)
+        install_hint="$(msg init_install_option_rye_install_hint)"
+        ;;
+      hatch)
+        install_hint="$(msg init_install_option_hatch_install_hint)"
+        ;;
+      conda)
+        install_hint="$(msg init_install_option_conda_hint)"
+        ;;
+      pip)
+        if [ "$has_venv" -eq 0 ]; then
+          install_hint="$(msg init_install_option_pip_create_venv_hint)"
+        else
+          install_hint="$(msg init_install_option_pip_requirements_hint)"
+        fi
+        ;;
+      esac
+
+      init_option_append_unique install_options "$install_cmd" "$install_cmd" "$install_hint"
+    fi
   fi
 
   if [ -n "$install_command_inferred" ]; then
@@ -1534,14 +1593,80 @@ INIT_USAGE_EN
   if [ "$repo_has_package_json" -eq 1 ] && [ "$package_has_dev" -eq 1 ]; then
     init_option_append_unique serve_options 'npm run dev' 'npm run dev' "$(msg init_serve_option_npm_run_dev_hint)"
   fi
-  if [ "$repo_has_uv" -eq 1 ]; then
-    init_option_append_unique serve_options 'uv run' 'uv run' "$(msg init_serve_option_uv_run_hint)"
+  # Python 项目的服务命令选项
+  if [ -n "$repo_python_tool" ] && [ -n "$repo_python_framework" ]; then
+    local venv_path=""
+    if detect_python_venv "$repo_path_selected" > /dev/null; then
+      venv_path="$repo_path_selected/$(detect_python_venv "$repo_path_selected")"
+    fi
+
+    local serve_cmd
+    serve_cmd=$(generate_python_serve_cmd "$repo_path_selected" "$repo_python_tool" "$repo_python_framework" "$venv_path")
+
+    # 生成友好的提示文本
+    local hint_text=""
+    case "$repo_python_tool" in
+    uv)
+      hint_text="$(msg init_serve_option_uv_run_hint)"
+      ;;
+    poetry)
+      hint_text="$(msg init_serve_option_poetry_run_hint)"
+      ;;
+    pipenv)
+      hint_text="$(msg init_serve_option_pipenv_run_hint)"
+      ;;
+    pdm)
+      hint_text="$(msg init_serve_option_pdm_run_hint)"
+      ;;
+    rye)
+      hint_text="$(msg init_serve_option_rye_run_hint)"
+      ;;
+    hatch)
+      hint_text="$(msg init_serve_option_hatch_run_hint)"
+      ;;
+    conda)
+      hint_text="$(msg init_serve_option_conda_hint)"
+      ;;
+    pip)
+      if [ -n "$venv_path" ]; then
+        hint_text="$(msg init_serve_option_pip_venv_hint)"
+      else
+        hint_text="$(msg init_serve_option_python_app_hint)"
+      fi
+      ;;
+    esac
+
+    init_option_append_unique serve_options "$serve_cmd" "$serve_cmd" "$hint_text"
   fi
-  if [ "$repo_has_manage" -eq 1 ]; then
-    init_option_append_unique serve_options 'python manage.py runserver' 'python manage.py runserver' "$(msg init_serve_option_manage_runserver_hint)"
-  fi
-  if [ "$repo_has_app" -eq 1 ]; then
-    init_option_append_unique serve_options 'python app.py' 'python app.py' "$(msg init_serve_option_python_app_hint)"
+
+  if [ -z "$repo_python_tool" ]; then
+    local fallback_cmd=""
+    local fallback_hint=""
+
+    if [ "${repo_has_manage:-0}" -eq 1 ] && [ -f "$repo_path_selected/manage.py" ]; then
+      fallback_cmd='python manage.py runserver'
+      fallback_hint="$(msg init_serve_option_manage_runserver_hint)"
+    else
+      local fallback_target=""
+      if [ -f "$repo_path_selected/main.py" ]; then
+        fallback_target='main.py'
+      elif [ -f "$repo_path_selected/app.py" ]; then
+        fallback_target='app.py'
+      elif [ -f "$repo_path_selected/app/main.py" ]; then
+        fallback_target='app/main.py'
+      elif [ -f "$repo_path_selected/src/main.py" ]; then
+        fallback_target='src/main.py'
+      fi
+
+      if [ -n "$fallback_target" ]; then
+        fallback_cmd="python $fallback_target"
+        fallback_hint="$(msg init_serve_option_python_app_hint)"
+      fi
+    fi
+
+    if [ -n "$fallback_cmd" ]; then
+      init_option_append_unique serve_options "$fallback_cmd" "$fallback_cmd" "$fallback_hint"
+    fi
   fi
 
   if [ -n "$serve_command_inferred" ]; then
