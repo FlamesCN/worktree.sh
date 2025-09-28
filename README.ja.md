@@ -1,9 +1,5 @@
 # worktree.sh
 
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg?style=flat-square)](LICENSE)
-[![Shell](https://img.shields.io/badge/shell-bash%203.0%2B-green.svg?style=flat-square)](https://www.gnu.org/software/bash/)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg?style=flat-square)](https://github.com/notdp/worktree.sh)
-
 **並列開発のためのゼロフリクション git worktree マネージャー**
 
 [English](README.md) • [中文](README.zh-CN.md)
