@@ -4534,6 +4534,11 @@ cmd_list_global() {
         info ''
       fi
       list_render_project_header_sage "$display_name" "$display_path"
+    elif [ "$LIST_THEME" = "archer" ]; then
+      if [ "$idx" -gt 0 ]; then
+        info ''
+      fi
+      list_render_project_header_archer "$display_name"
     else
       list_render_project_header_box "$display_name" "$display_path"
     fi
