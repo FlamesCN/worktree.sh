@@ -421,8 +421,8 @@ LANG_USAGE_EN
   merge_requires_name)
     printf 'merge requires a worktree name (e.g. wt merge 123)'
     ;;
-  merge_main_only)
-    printf 'merge only runs on %s (current: %s); checkout the base branch first' "$1" "$2"
+  merge_invalid_target)
+    printf 'merge resolves %s (worktree %s) → %s (main workspace); wt merge expects a feature branch. Rename the worktree or adjust the branch prefix.' "$1" "$2" "$3"
     ;;
   merge_base_dirty)
     printf 'main workspace has uncommitted changes; commit or stash before merging'
@@ -1262,8 +1262,8 @@ LANG_USAGE_ZH
   merge_requires_name)
     printf 'merge 需要指定 worktree 名称（例如 wt merge 123）'
     ;;
-  merge_main_only)
-    printf 'merge 仅支持在 %s 分支执行（当前：%s），请先切换到基线分支' "$1" "$2"
+  merge_invalid_target)
+    printf '解析得到 %s（worktree %s）→ %s（主工作区）；wt merge 预期特性分支，请检查 worktree 名称或分支前缀。' "$1" "$2" "$3"
     ;;
   merge_base_dirty)
     printf '主仓存在未提交修改，合并前请提交或暂存'

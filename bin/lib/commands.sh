@@ -1927,7 +1927,7 @@ cmd_merge() {
   fi
 
   if [ "$branch" = "$base_branch" ]; then
-    die "$(msg merge_main_only "$base_branch" "$current_branch")"
+    die "$(msg merge_invalid_target "$branch" "$name" "$base_branch")"
   fi
 
   if ! git_project show-ref --verify --quiet "refs/heads/$branch"; then
@@ -1992,16 +1992,7 @@ cmd_sync() {
     die "$(msg project_branch_required)"
   fi
 
-  local base_branch=""
-  base_branch=$(detect_repo_default_branch "$current_branch")
-
-  if [ -z "$base_branch" ]; then
-    die "$(msg merge_main_only main "$current_branch")"
-  fi
-
-  if [ "$current_branch" != "$base_branch" ]; then
-    die "$(msg merge_main_only "$base_branch" "$current_branch")"
-  fi
+  local base_branch="$current_branch"
 
   if ! git_project diff --quiet; then
     die "$(msg sync_base_dirty)"
