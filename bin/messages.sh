@@ -5,7 +5,10 @@ msg_en() {
   shift || true
   case "$key" in
   copy_env_file)
-    printf '📄 Copy %s' "$1"
+    printf '📄 Copy %s → %s' "$1" "$2"
+    ;;
+  copy_env_missing)
+    printf '⚠️  Skipping copy; source not found: %s' "$1"
     ;;
   command_not_found)
     printf '⚠️  Command not available: %s; skipping' "$1"
@@ -846,7 +849,10 @@ msg_zh() {
   shift || true
   case "$key" in
   copy_env_file)
-    printf '📄 复制 %s' "$1"
+    printf '📄 复制 %s → %s' "$1" "$2"
+    ;;
+  copy_env_missing)
+    printf '⚠️  源文件不存在，已跳过：%s' "$1"
     ;;
   command_not_found)
     printf '⚠️  未找到命令：%s，已跳过' "$1"

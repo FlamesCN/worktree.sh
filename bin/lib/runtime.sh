@@ -3178,12 +3178,45 @@ git_at_path() {
 }
 
 copy_env_file() {
-  local file_name="$1"
+  local entry="$1"
   local target_dir="$2"
-  if [ -f "$PROJECT_DIR_ABS/$file_name" ]; then
-    cp "$PROJECT_DIR_ABS/$file_name" "$target_dir/"
-    info "$(msg copy_env_file "$file_name")"
+  local source_rel="$entry"
+  local dest_rel=""
+
+  if [[ "$entry" == *:* ]]; then
+    source_rel="${entry%%:*}"
+    dest_rel="${entry#*:}"
   fi
+
+  if [ -z "$dest_rel" ]; then
+    dest_rel="$source_rel"
+  fi
+
+  local source_path="$PROJECT_DIR_ABS/$source_rel"
+  local dest_path="$target_dir/$dest_rel"
+
+  if [ -d "$source_path" ]; then
+    mkdir -p "$dest_path"
+    if command -v rsync > /dev/null 2>&1; then
+      rsync -a "$source_path/" "$dest_path/"
+    else
+      cp -R "$source_path"/. "$dest_path/"
+    fi
+    info "$(msg copy_env_file "$source_rel" "$dest_rel")"
+    return
+  fi
+
+  if [ -f "$source_path" ]; then
+    local dest_dir
+    dest_dir=$(dirname "$dest_path")
+    mkdir -p "$dest_dir"
+    dest_path=${dest_path%/}
+    cp "$source_path" "$dest_path"
+    info "$(msg copy_env_file "$source_rel" "$dest_rel")"
+    return
+  fi
+
+  info "$(msg copy_env_missing "$source_rel")"
 }
 
 command_exists_for_line() {
@@ -4711,16 +4744,13 @@ cmd_add() {
   if [ "$run_dev" -eq 1 ]; then
     effective_port=$(port_from_name "$name")
 
-    if [ -z "$effective_port" ]; then
-      if [ -n "$port_candidate" ] && [ "$port_candidate" -lt 1024 ]; then
+    if [ -z "$effective_port" ] && [ -n "$port_candidate" ]; then
+      if [ "$port_candidate" -lt 1024 ]; then
         skip_dev=1
         skip_dev_port="$port_candidate"
         skip_dev_reason="reserved"
-      elif [ -n "$port_candidate" ] && [ "$port_candidate" -gt 65535 ]; then
+      elif [ "$port_candidate" -gt 65535 ]; then
         info "$(msg fallback_default_port)"
-      else
-        skip_dev=1
-        skip_dev_reason="no_port"
       fi
     fi
   fi
