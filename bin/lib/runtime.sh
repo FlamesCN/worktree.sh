@@ -1846,7 +1846,9 @@ project_remove_worktree() {
   fi
 
   if [ -n "$branch" ] && git_at_path "$repo_path" show-ref --verify --quiet "refs/heads/$branch"; then
-    if git_at_path "$repo_path" branch -D "$branch" > /dev/null 2>&1; then
+    if protected_worktree_branch "$branch"; then
+      info "$(msg remove_branch_skip_protected "$path" "$branch" "$branch")"
+    elif git_at_path "$repo_path" branch -D "$branch" > /dev/null 2>&1; then
       info "$(msg removed_branch "$branch")"
     fi
   fi
@@ -3081,6 +3083,91 @@ worktree_branch_for_path() {
   fi
 
   worktree_branch_for_path_in_repo "$PROJECT_DIR_ABS" "$lookup_path"
+}
+
+protected_worktree_branch() {
+  case "${1:-}" in
+  main | master | develop | dev)
+    return 0
+    ;;
+  esac
+
+  return 1
+}
+
+expected_worktree_branch_name() {
+  if [ $# -lt 1 ]; then
+    return 1
+  fi
+
+  local name="$1"
+  local branch_prefix="${2:-}"
+
+  if [ -n "$branch_prefix" ]; then
+    printf '%s%s\n' "$branch_prefix" "$name"
+  else
+    printf '%s\n' "$name"
+  fi
+}
+
+WT_VALIDATED_REMOVE_BRANCH=""
+WT_REMOVE_BRANCH_REASON=""
+WT_REMOVE_BRANCH_EXPECTED=""
+
+validate_removable_worktree_branch() {
+  if [ $# -lt 2 ]; then
+    return 1
+  fi
+
+  local name="$1"
+  local actual_branch="$2"
+  local branch_prefix="${3:-}"
+
+  WT_VALIDATED_REMOVE_BRANCH=""
+  WT_REMOVE_BRANCH_REASON=""
+  WT_REMOVE_BRANCH_EXPECTED=""
+  WT_REMOVE_BRANCH_EXPECTED=$(expected_worktree_branch_name "$name" "$branch_prefix")
+
+  if [ -z "$actual_branch" ]; then
+    WT_REMOVE_BRANCH_REASON='missing'
+    return 1
+  fi
+
+  if protected_worktree_branch "$actual_branch"; then
+    WT_REMOVE_BRANCH_REASON='protected'
+    return 1
+  fi
+
+  if [ -n "$WT_REMOVE_BRANCH_EXPECTED" ] && [ "$actual_branch" != "$WT_REMOVE_BRANCH_EXPECTED" ]; then
+    WT_REMOVE_BRANCH_REASON='mismatch'
+    return 1
+  fi
+
+  WT_VALIDATED_REMOVE_BRANCH="$actual_branch"
+  return 0
+}
+
+log_skipped_branch_removal() {
+  if [ $# -lt 1 ]; then
+    return 1
+  fi
+
+  local target_path="$1"
+  local actual_branch="${2:-}"
+  local expected_branch="${3:-$WT_REMOVE_BRANCH_EXPECTED}"
+  local reason="${4:-$WT_REMOVE_BRANCH_REASON}"
+
+  case "$reason" in
+  protected)
+    info "$(msg remove_branch_skip_protected "$target_path" "$actual_branch" "$expected_branch")"
+    ;;
+  mismatch)
+    info "$(msg remove_branch_skip_mismatch "$target_path" "$actual_branch" "$expected_branch")"
+    ;;
+  missing)
+    info "$(msg remove_branch_skip_missing "$target_path" "$expected_branch")"
+    ;;
+  esac
 }
 
 branch_for() {

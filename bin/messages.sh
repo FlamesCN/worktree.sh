@@ -514,6 +514,15 @@ LANG_USAGE_EN
   remove_failed)
     printf 'Failed to remove %s' "$1"
     ;;
+  remove_branch_skip_protected)
+    printf '⚠️  Skipping branch deletion for %s: protected branch %s (expected exact match %s)' "$1" "$2" "$3"
+    ;;
+  remove_branch_skip_mismatch)
+    printf '⚠️  Skipping branch deletion for %s: current branch %s does not exactly match expected %s' "$1" "$2" "$3"
+    ;;
+  remove_branch_skip_missing)
+    printf '⚠️  Skipping branch deletion for %s: current branch could not be verified (expected exact match %s)' "$1" "$2"
+    ;;
   detach_prompt_worktree)
     printf 'Remove worktree %s? [Y/n]' "$1"
     ;;
@@ -1360,6 +1369,15 @@ LANG_USAGE_ZH
     ;;
   remove_failed)
     printf '删除 %s 失败' "$1"
+    ;;
+  remove_branch_skip_protected)
+    printf '⚠️  跳过删除分支：%s 当前挂着受保护分支 %s（期望精确匹配 %s）' "$1" "$2" "$3"
+    ;;
+  remove_branch_skip_mismatch)
+    printf '⚠️  跳过删除分支：%s 当前分支 %s 与期望分支 %s 不完全一致' "$1" "$2" "$3"
+    ;;
+  remove_branch_skip_missing)
+    printf '⚠️  跳过删除分支：无法确认 %s 当前分支（期望精确匹配 %s）' "$1" "$2"
     ;;
   detach_prompt_worktree)
     printf '移除工作树 %s？[Y/n]' "$1"
