@@ -2773,7 +2773,7 @@ usage() {
 
 核心命令:
   init               将当前仓库设为 wt 的默认项目
-  add <name>         创建新 worktree，复制环境文件、安装依赖并启动 dev server（可通过 wt config 调整）
+  add <name>         创建新 worktree；名称为纯数字或以数字结尾时会自动推断 dev 端口
   main               跳转到主 worktree
   merge <name>       将指定 worktree 的分支（feat/<name>）合并到主分支
   sync [all|name ...] 将主工作区的暂存改动同步到其他 worktree
@@ -2786,6 +2786,10 @@ usage() {
   uninstall          卸载 wt 并清理 shell 集成
   reinstall          运行 uninstall.sh + install.sh 重新部署 wt
   help               显示此帮助
+
+帮助:
+  wt help <command>  查看子命令帮助
+  wt <command> --help 与上面等价，例如 wt add --help
 
 ${dir_banner_zh}
 
@@ -2800,7 +2804,7 @@ Usage:
 
 Core commands:
   init               Remember this repository as wt's default project
-  add <name>         Create a new worktree, copy env files, install deps, start dev server (tunable via wt config)
+  add <name>         Create a new worktree; numeric names or trailing digits also infer the dev port
   main               Jump to the main worktree
   merge <name>       Merge the feature branch (feat/<name>) back into the base branch
   sync [all|name ...] Sync staged changes from the main workspace into other worktrees
@@ -2813,6 +2817,10 @@ Core commands:
   uninstall          Uninstall wt and clean shell hooks
   reinstall          Run uninstall.sh + install.sh to refresh wt
   help               Show this guide
+
+Help:
+  wt help <command>  Show subcommand help
+  wt <command> --help Same as above, for example wt add --help
 
 ${dir_banner_en}
 
@@ -4765,6 +4773,13 @@ cmd_add() {
   shift || true
 
   [ -n "$name" ] || die "$(msg add_requires_name)"
+  if is_help_token "$name"; then
+    command_usage add
+    return
+  fi
+  if [[ "$name" == -* ]]; then
+    die "$(msg add_unknown_option "$name")"
+  fi
   if ! validate_worktree_name "$name"; then
     die "$(msg invalid_worktree_name "$name")"
   fi
@@ -4807,8 +4822,8 @@ cmd_add() {
   while [ $# -gt 0 ]; do
     case "$1" in
     -h | --help | help)
-      usage
-      exit 0
+      command_usage add
+      return
       ;;
     --)
       shift

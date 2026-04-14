@@ -235,6 +235,172 @@ Non-interactive:
   wt lang help             Show this help
 LANG_USAGE_EN
     ;;
+  help_usage)
+    cat << 'HELP_USAGE_EN'
+wt help - Show global or command-specific help
+
+Usage:
+  wt help
+  wt help <command>
+
+Examples:
+  wt help add
+  wt help sync
+
+Tip:
+  Every core command also accepts --help, for example:
+  wt add --help
+HELP_USAGE_EN
+    ;;
+  list_usage)
+    cat << 'LIST_USAGE_EN'
+wt list - Show known worktrees for the current project
+
+Usage:
+  wt
+  wt list
+  wt list --help
+
+Notes:
+  - Inside a configured project, shows that project's main worktree plus siblings.
+  - Outside a configured project, use wt help for command discovery or wt init in a repo first.
+LIST_USAGE_EN
+    ;;
+  main_usage)
+    cat << 'MAIN_USAGE_EN'
+wt main - Print the main worktree path
+
+Usage:
+  wt main
+  wt main --help
+
+Notes:
+  - With shell-hook installed, calling wt main jumps back to the main repository automatically.
+  - Without shell-hook, it prints the absolute path so you can cd manually.
+MAIN_USAGE_EN
+    ;;
+  path_usage)
+    cat << 'PATH_USAGE_EN'
+wt path - Print a worktree path without switching directories
+
+Usage:
+  wt path <name>
+  wt path --help
+
+Examples:
+  wt path 3000
+  wt path ui9083
+PATH_USAGE_EN
+    ;;
+  add_usage)
+    cat << 'ADD_USAGE_EN'
+wt add - Create a new worktree from the current branch
+
+Usage:
+  wt add <name>
+  wt add --help
+
+What <name> controls:
+  - Worktree path suffix (for example ../project.<name>)
+  - Branch suffix (for example feat/<name>)
+  - Dev PORT when the name is numeric or ends with digits
+
+Port rules:
+  - wt add 9083      -> PORT=9083
+  - wt add ui9083    -> worktree name ui9083, branch feat/ui9083, PORT=9083
+  - Ports below 1024 are treated as reserved and are not passed to the dev command
+  - Ports above 65535 fall back to the default dev port behavior
+
+Examples:
+  wt add 3000
+  wt add ui9083
+  wt add feat-auth
+ADD_USAGE_EN
+    ;;
+  merge_usage)
+    cat << 'MERGE_USAGE_EN'
+wt merge - Merge a worktree branch back into the current base branch
+
+Usage:
+  wt merge <name>
+  wt merge --help
+
+Examples:
+  wt merge 3000
+  wt merge ui9083
+
+Notes:
+  - Run from the main worktree on the branch you want to merge into.
+  - Both the main worktree and target worktree must be clean.
+MERGE_USAGE_EN
+    ;;
+  sync_usage)
+    cat << 'SYNC_USAGE_EN'
+wt sync - Apply staged changes from the main worktree into other worktrees
+
+Usage:
+  wt sync all
+  wt sync <name> [name ...]
+  wt sync --help
+
+Examples:
+  wt sync all
+  wt sync 3000 ui9083
+
+Notes:
+  - Sync reads the staged diff from the current main worktree.
+  - Target worktrees must be clean before syncing.
+SYNC_USAGE_EN
+    ;;
+  remove_usage)
+    cat << 'REMOVE_USAGE_EN'
+wt rm - Remove worktrees and their feature branches
+
+Usage:
+  wt rm [name ...]
+  wt rm --help
+
+Examples:
+  wt rm 3000
+  wt rm ui9083
+  wt rm          # Remove the current worktree when run inside it
+
+Notes:
+  - Protected or mismatched branches are skipped instead of deleted.
+  - Alias: wt remove
+REMOVE_USAGE_EN
+    ;;
+  clean_usage)
+    cat << 'CLEAN_USAGE_EN'
+wt clean - Remove numeric worktrees for the current project
+
+Usage:
+  wt clean
+  wt clean --help
+
+Notes:
+  - Matches worktrees whose suffix is only digits, such as 3000 or 9083.
+  - Leaves named worktrees such as ui9083 or feat-auth untouched.
+CLEAN_USAGE_EN
+    ;;
+  detach_usage)
+    cat << 'DETACH_USAGE_EN'
+wt detach - Remove all tracked worktrees for a project
+
+Usage:
+  wt detach [-y|--yes] [project-slug]
+  wt detach --help
+
+Examples:
+  wt detach
+  wt detach -y
+  wt detach my-project
+
+Notes:
+  - In a project workspace, the current project slug is used by default.
+  - In global mode, wt can prompt you to choose a project when no slug is provided.
+DETACH_USAGE_EN
+    ;;
   init_prompt_repo_path)
     printf 'Repository path for wt to track?'
     ;;
@@ -1087,6 +1253,172 @@ wt lang - 管理 worktree.sh 界面语言
   wt lang en|zh            等同于 wt lang set
   wt lang help             显示本帮助
 LANG_USAGE_ZH
+    ;;
+  help_usage)
+    cat << 'HELP_USAGE_ZH'
+wt help - 查看全局帮助或子命令帮助
+
+用法:
+  wt help
+  wt help <command>
+
+示例:
+  wt help add
+  wt help sync
+
+提示:
+  核心命令都支持 --help，例如：
+  wt add --help
+HELP_USAGE_ZH
+    ;;
+  list_usage)
+    cat << 'LIST_USAGE_ZH'
+wt list - 查看当前项目已登记的 worktree
+
+用法:
+  wt
+  wt list
+  wt list --help
+
+说明:
+  - 在已配置项目中，会显示主 worktree 及其兄弟 worktree。
+  - 在未配置目录中，可先用 wt help 看命令，或进入仓库执行 wt init。
+LIST_USAGE_ZH
+    ;;
+  main_usage)
+    cat << 'MAIN_USAGE_ZH'
+wt main - 输出主 worktree 路径
+
+用法:
+  wt main
+  wt main --help
+
+说明:
+  - 安装 shell-hook 后，执行 wt main 会自动切回主仓库。
+  - 未安装 shell-hook 时，会输出绝对路径，方便手动 cd。
+MAIN_USAGE_ZH
+    ;;
+  path_usage)
+    cat << 'PATH_USAGE_ZH'
+wt path - 输出 worktree 路径而不切换目录
+
+用法:
+  wt path <name>
+  wt path --help
+
+示例:
+  wt path 3000
+  wt path ui9083
+PATH_USAGE_ZH
+    ;;
+  add_usage)
+    cat << 'ADD_USAGE_ZH'
+wt add - 基于当前分支创建新的 worktree
+
+用法:
+  wt add <name>
+  wt add --help
+
+<name> 会同时决定：
+  - worktree 路径后缀（例如 ../project.<name>）
+  - 分支后缀（例如 feat/<name>）
+  - 当名称为纯数字或以数字结尾时，对应 dev 命令的 PORT
+
+端口规则:
+  - wt add 9083      -> PORT=9083
+  - wt add ui9083    -> worktree 名称为 ui9083，分支为 feat/ui9083，PORT=9083
+  - 小于 1024 的端口视为保留端口，不会传给 dev 命令
+  - 大于 65535 的端口会回退到默认 dev 端口行为
+
+示例:
+  wt add 3000
+  wt add ui9083
+  wt add feat-auth
+ADD_USAGE_ZH
+    ;;
+  merge_usage)
+    cat << 'MERGE_USAGE_ZH'
+wt merge - 将指定 worktree 分支合并回当前主分支
+
+用法:
+  wt merge <name>
+  wt merge --help
+
+示例:
+  wt merge 3000
+  wt merge ui9083
+
+说明:
+  - 请在主 worktree 中、目标主分支上执行。
+  - 主 worktree 和目标 worktree 都必须是干净状态。
+MERGE_USAGE_ZH
+    ;;
+  sync_usage)
+    cat << 'SYNC_USAGE_ZH'
+wt sync - 将主 worktree 已暂存的改动应用到其他 worktree
+
+用法:
+  wt sync all
+  wt sync <name> [name ...]
+  wt sync --help
+
+示例:
+  wt sync all
+  wt sync 3000 ui9083
+
+说明:
+  - sync 会读取当前主 worktree 已暂存的 diff。
+  - 目标 worktree 在同步前必须保持干净。
+SYNC_USAGE_ZH
+    ;;
+  remove_usage)
+    cat << 'REMOVE_USAGE_ZH'
+wt rm - 删除 worktree 及其功能分支
+
+用法:
+  wt rm [name ...]
+  wt rm --help
+
+示例:
+  wt rm 3000
+  wt rm ui9083
+  wt rm          # 在 worktree 目录内执行时删除当前 worktree
+
+说明:
+  - 受保护分支或分支名不匹配时，会跳过删分支而不是强删。
+  - 别名：wt remove
+REMOVE_USAGE_ZH
+    ;;
+  clean_usage)
+    cat << 'CLEAN_USAGE_ZH'
+wt clean - 批量删除当前项目中的纯数字 worktree
+
+用法:
+  wt clean
+  wt clean --help
+
+说明:
+  - 只匹配后缀为纯数字的 worktree，例如 3000、9083。
+  - 不会删除 ui9083、feat-auth 这类带名字的 worktree。
+CLEAN_USAGE_ZH
+    ;;
+  detach_usage)
+    cat << 'DETACH_USAGE_ZH'
+wt detach - 删除某个项目登记的全部 worktree
+
+用法:
+  wt detach [-y|--yes] [project-slug]
+  wt detach --help
+
+示例:
+  wt detach
+  wt detach -y
+  wt detach my-project
+
+说明:
+  - 在项目工作区内执行时，默认使用当前项目 slug。
+  - 在全局模式下，如果不传 slug，wt 可以交互式让你选择项目。
+DETACH_USAGE_ZH
     ;;
   init_prompt_repo_path)
     printf 'wt 追踪的主仓库地址?'

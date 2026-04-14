@@ -295,6 +295,198 @@ theme_prompt_interactive() {
   esac
 }
 
+is_help_token() {
+  case "${1:-}" in
+  -h | --help | help)
+    return 0
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+shell_hook_usage() {
+  case "$LANGUAGE" in
+  zh)
+    cat << 'HOOK_USAGE_ZH'
+wt shell-hook 用法:
+  wt shell-hook zsh
+  wt shell-hook bash
+
+将输出通过 eval/source 加载以安装包装函数，例如：
+  eval "$(wt shell-hook zsh)"
+HOOK_USAGE_ZH
+    ;;
+  *)
+    cat << 'HOOK_USAGE_EN'
+wt shell-hook usage:
+  wt shell-hook zsh
+  wt shell-hook bash
+
+Pipe the output into eval/source to install the wrapper, e.g.
+  eval "$(wt shell-hook zsh)"
+HOOK_USAGE_EN
+    ;;
+  esac
+}
+
+uninstall_usage() {
+  case "$LANGUAGE" in
+  zh)
+    cat << 'UNINSTALL_USAGE_ZH'
+wt uninstall 用法:
+  wt uninstall [--shell <shell>] [--prefix <dir>]
+
+选项:
+  --shell <shell>   指定要清理的 shell（zsh|bash|none；默认自动检测）
+  --prefix <dir>    wt 安装目录（默认 $HOME/.local/bin）
+  --help            查看帮助
+UNINSTALL_USAGE_ZH
+    ;;
+  *)
+    cat << 'UNINSTALL_USAGE_EN'
+wt uninstall usage:
+  wt uninstall [--shell <shell>] [--prefix <dir>]
+
+Options:
+  --shell <shell>   Shell to clean hooks for (zsh|bash|none; default: auto-detect)
+  --prefix <dir>    Directory where wt is installed (default: $HOME/.local/bin)
+  --help            Show this help
+UNINSTALL_USAGE_EN
+    ;;
+  esac
+}
+
+reinstall_usage() {
+  case "$LANGUAGE" in
+  zh)
+    cat << 'REINSTALL_USAGE_ZH'
+wt reinstall 用法:
+  wt reinstall [--shell <shell>] [--prefix <dir>]
+
+说明:
+  - 先运行 uninstall.sh，再运行 install.sh
+  - 默认目标目录为 ~/.local/bin（可通过 WT_INSTALL_PREFIX 或 --prefix 覆盖）
+  - 需在包含 install.sh 与 uninstall.sh 的仓库目录中运行
+REINSTALL_USAGE_ZH
+    ;;
+  *)
+    cat << 'REINSTALL_USAGE_EN'
+wt reinstall usage:
+  wt reinstall [--shell <shell>] [--prefix <dir>]
+
+Notes:
+  - Executes uninstall.sh followed by install.sh from this checkout
+  - Targets ~/.local/bin by default (override via WT_INSTALL_PREFIX or --prefix)
+  - Must be invoked from a checkout that contains install.sh and uninstall.sh
+REINSTALL_USAGE_EN
+    ;;
+  esac
+}
+
+init_usage() {
+  case "$LANGUAGE" in
+  zh)
+    cat << 'INIT_USAGE_ZH'
+wt init 用法:
+  wt init
+
+请在目标仓库运行：
+- 创建 ~/.worktree.sh/projects/<slug>/config.kv（如不存在）。
+- 设置 repo.path 为仓库根目录（根据 git common dir 推导）。
+INIT_USAGE_ZH
+    ;;
+  *)
+    cat << 'INIT_USAGE_EN'
+wt init usage:
+  wt init
+
+Run inside the target repository:
+- Create ~/.worktree.sh/projects/<slug>/config.kv when missing.
+- Set repo.path to the repository root (derived from git common dir).
+INIT_USAGE_EN
+    ;;
+  esac
+}
+
+command_usage() {
+  local command="${1:-}"
+
+  case "$command" in
+  help)
+    msg help_usage
+    ;;
+  list)
+    msg list_usage
+    ;;
+  main)
+    msg main_usage
+    ;;
+  path)
+    msg path_usage
+    ;;
+  add)
+    msg add_usage
+    ;;
+  merge)
+    msg merge_usage
+    ;;
+  sync)
+    msg sync_usage
+    ;;
+  rm | remove)
+    msg remove_usage
+    ;;
+  clean)
+    msg clean_usage
+    ;;
+  detach)
+    msg detach_usage
+    ;;
+  config)
+    config_usage
+    ;;
+  lang)
+    msg lang_usage
+    ;;
+  theme)
+    msg theme_usage
+    ;;
+  shell-hook)
+    shell_hook_usage
+    ;;
+  init)
+    init_usage
+    ;;
+  uninstall)
+    uninstall_usage
+    ;;
+  reinstall)
+    reinstall_usage
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+maybe_print_command_help() {
+  local command="${1:-}"
+  shift || true
+
+  if [ $# -eq 0 ]; then
+    return 1
+  fi
+
+  if ! is_help_token "$1"; then
+    return 1
+  fi
+
+  command_usage "$command" || return 1
+  return 0
+}
+
 cmd_config() {
   local scope="$CURRENT_SCOPE"
   if [ $# -eq 0 ]; then
@@ -509,28 +701,7 @@ cmd_shell_hook() {
 
   case "$1" in
   -h | --help | help)
-    case "$LANGUAGE" in
-    zh)
-      cat << 'HOOK_USAGE_ZH'
-wt shell-hook 用法:
-  wt shell-hook zsh
-  wt shell-hook bash
-
-将输出通过 eval/source 加载以安装包装函数，例如：
-  eval "$(wt shell-hook zsh)"
-HOOK_USAGE_ZH
-      ;;
-    *)
-      cat << 'HOOK_USAGE_EN'
-wt shell-hook usage:
-  wt shell-hook zsh
-  wt shell-hook bash
-
-Pipe the output into eval/source to install the wrapper, e.g.
-  eval "$(wt shell-hook zsh)"
-HOOK_USAGE_EN
-      ;;
-    esac
+    shell_hook_usage
     return
     ;;
   esac
@@ -798,30 +969,7 @@ cmd_uninstall() {
       prefix="$1"
       ;;
     -h | --help | help)
-      case "$LANGUAGE" in
-      zh)
-        cat << 'UNINSTALL_USAGE_ZH'
-wt uninstall 用法:
-  wt uninstall [--shell <shell>] [--prefix <dir>]
-
-选项:
-  --shell <shell>   指定要清理的 shell（zsh|bash|none；默认自动检测）
-  --prefix <dir>    wt 安装目录（默认 $HOME/.local/bin）
-  --help            查看帮助
-UNINSTALL_USAGE_ZH
-        ;;
-      *)
-        cat << 'UNINSTALL_USAGE_EN'
-wt uninstall usage:
-  wt uninstall [--shell <shell>] [--prefix <dir>]
-
-Options:
-  --shell <shell>   Shell to clean hooks for (zsh|bash|none; default: auto-detect)
-  --prefix <dir>    Directory where wt is installed (default: $HOME/.local/bin)
-  --help            Show this help
-UNINSTALL_USAGE_EN
-        ;;
-      esac
+      uninstall_usage
       return
       ;;
     --)
@@ -895,30 +1043,7 @@ cmd_reinstall() {
       prefix="$1"
       ;;
     -h | --help | help)
-      case "$LANGUAGE" in
-      zh)
-        cat << 'REINSTALL_USAGE_ZH'
-wt reinstall 用法:
-  wt reinstall [--shell <shell>] [--prefix <dir>]
-
-说明:
-  - 先运行 uninstall.sh，再运行 install.sh
-  - 默认目标目录为 ~/.local/bin（可通过 WT_INSTALL_PREFIX 或 --prefix 覆盖）
-  - 需在包含 install.sh 与 uninstall.sh 的仓库目录中运行
-REINSTALL_USAGE_ZH
-        ;;
-      *)
-        cat << 'REINSTALL_USAGE_EN'
-wt reinstall usage:
-  wt reinstall [--shell <shell>] [--prefix <dir>]
-
-Notes:
-  - Executes uninstall.sh followed by install.sh from this checkout
-  - Targets ~/.local/bin by default (override via WT_INSTALL_PREFIX or --prefix)
-  - Must be invoked from a checkout that contains install.sh and uninstall.sh
-REINSTALL_USAGE_EN
-        ;;
-      esac
+      reinstall_usage
       return
       ;;
     --)
@@ -1118,28 +1243,7 @@ cmd_init() {
       assume_yes=1
       ;;
     --help | help)
-      case "$LANGUAGE" in
-      zh)
-        cat << 'INIT_USAGE_ZH'
-wt init 用法:
-  wt init
-
-请在目标仓库运行：
-- 创建 ~/.worktree.sh/projects/<slug>/config.kv（如不存在）。
-- 设置 repo.path 为仓库根目录（根据 git common dir 推导）。
-INIT_USAGE_ZH
-        ;;
-      *)
-        cat << 'INIT_USAGE_EN'
-wt init usage:
-  wt init
-
-Run inside the target repository:
-- Create ~/.worktree.sh/projects/<slug>/config.kv when missing.
-- Set repo.path to the repository root (derived from git common dir).
-INIT_USAGE_EN
-        ;;
-      esac
+      init_usage
       return
       ;;
     -*)
@@ -2167,8 +2271,8 @@ cmd_remove() {
       assume_yes=1
       ;;
     -h | --help | help)
-      usage
-      exit 0
+      command_usage rm
+      return
       ;;
     -*)
       die "$(msg remove_unknown_option "$1")"
@@ -2226,8 +2330,8 @@ cmd_remove_global() {
       assume_yes=1
       ;;
     -h | --help | help)
-      usage
-      exit 0
+      command_usage rm
+      return
       ;;
     -*)
       die "$(msg remove_unknown_option "$1")"
@@ -2323,8 +2427,8 @@ cmd_detach() {
       force=1
       ;;
     -h | --help | help)
-      usage
-      exit 0
+      command_usage detach
+      return
       ;;
     --*)
       die "$(msg detach_unknown_option "$1")"
@@ -2597,6 +2701,10 @@ wt_main() {
   scope=$(current_scope)
   CURRENT_SCOPE="$scope"
 
+  if [ "$command" != "help" ] && maybe_print_command_help "$command" "$@"; then
+    return
+  fi
+
   case "$command" in
   config)
     cmd_config "$@"
@@ -2627,7 +2735,16 @@ wt_main() {
     return
     ;;
   help)
-    usage
+    if [ $# -eq 0 ]; then
+      usage
+      return
+    fi
+    if [ $# -gt 1 ]; then
+      die "$(msg unexpected_extra_argument "$2")"
+    fi
+    if ! command_usage "$1"; then
+      usage_exit 1
+    fi
     return
     ;;
   version)

@@ -42,6 +42,11 @@ wt add 3000
 # - Installs dependencies
 # - Starts dev server on port 3000
 
+# Names with trailing digits also set the dev PORT
+wt add ui9083
+# - Creates branch feat/ui9083
+# - Starts the configured dev command with PORT=9083
+
 # 3. Navigate between worktrees
 wt 3000    # Jump to feature worktree
 wt main    # Return to main repository
@@ -97,8 +102,14 @@ wt rm 3000
 | `wt lang`      | Set CLI language (en/zh)     | `wt lang set zh` |
 | `wt theme`     | Switch `wt list` theme (`box`\|`sage`\|`archer`) | `wt theme set box` |
 | `wt help`      | Show command reference       | `wt help`        |
+| `wt help <command>` | Show subcommand help     | `wt help add`    |
 | `wt reinstall` | Update to latest version     | `wt reinstall`   |
 | `wt uninstall` | Remove worktree.sh           | `wt uninstall`   |
+
+## Help and Naming Rules
+
+- Every core command supports `wt <command> --help`, and `wt help <command>` is the equivalent long form.
+- `wt add <name>` uses trailing digits as the dev `PORT`. For example, `wt add ui9083` keeps the worktree name `ui9083`, creates branch `feat/ui9083`, and runs the configured dev command with `PORT=9083`.
 
 ## Advanced Features
 
