@@ -1979,6 +1979,10 @@ remove_worktree_by_name() {
 
   validate_removable_worktree_branch "$name" "$branch" "$WORKTREE_BRANCH_PREFIX" || true
 
+  if ! run_configured_hook_command "$REMOVE_PRE_COMMAND" "$PROJECT_DIR_ABS" "remove.pre" "$name" "$target_path" "$branch"; then
+    die "remove pre-command failed"
+  fi
+
   info "$(msg removing_worktree "$target_path")"
   local removal_succeeded=0
   if git_project worktree remove "$target_path" --force >&2; then

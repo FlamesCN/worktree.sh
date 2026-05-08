@@ -26,6 +26,8 @@ readonly CONFIG_DEFAULT_INSTALL_DEPS_ENABLED=1
 readonly CONFIG_DEFAULT_COPY_ENV_ENABLED=1
 readonly CONFIG_DEFAULT_INSTALL_DEPS_COMMAND=""
 readonly CONFIG_DEFAULT_SERVE_DEV_COMMAND=""
+readonly CONFIG_DEFAULT_ADD_POST_COMMAND=""
+readonly CONFIG_DEFAULT_REMOVE_PRE_COMMAND=""
 readonly CONFIG_DEFAULT_LANGUAGE="en"
 readonly CONFIG_DEFAULT_THEME="box"
 readonly -a CONFIG_DEFAULT_COPY_ENV_FILES=(".env" ".env.local")
@@ -40,6 +42,8 @@ INSTALL_DEPS_ENABLED=0
 COPY_ENV_ENABLED=0
 INSTALL_DEPS_COMMAND=""
 SERVE_DEV_COMMAND=""
+ADD_POST_COMMAND=""
+REMOVE_PRE_COMMAND=""
 LANGUAGE="$CONFIG_DEFAULT_LANGUAGE"
 LIST_THEME="$CONFIG_DEFAULT_THEME"
 WORKING_REPO_PATH_CONFIGURED=0
@@ -1814,6 +1818,21 @@ project_remove_worktree() {
     return 1
   fi
 
+  local hook_name=""
+  if [ -n "$branch" ]; then
+    hook_name="${branch##*/}"
+  else
+    hook_name="$(basename "$path")"
+    if [ -n "$WORKTREE_NAME_PREFIX" ] && [[ "$hook_name" == "$WORKTREE_NAME_PREFIX"* ]]; then
+      hook_name="${hook_name#"$WORKTREE_NAME_PREFIX"}"
+    fi
+  fi
+
+  if ! run_configured_hook_command "$REMOVE_PRE_COMMAND" "$PROJECT_DIR_ABS" "remove.pre" "$hook_name" "$path" "$branch"; then
+    PROJECT_REMOVE_LAST_ERROR='remove pre-command failed'
+    return 1
+  fi
+
   local removal_failure=0
   local removal_output=""
 
@@ -2339,6 +2358,9 @@ config_default_value() {
   add.install-deps.command)
     printf '%s\n' "$CONFIG_DEFAULT_INSTALL_DEPS_COMMAND"
     ;;
+  add.post-command)
+    printf '%s\n' "$CONFIG_DEFAULT_ADD_POST_COMMAND"
+    ;;
   add.serve-dev.enabled)
     config_bool_to_string "$CONFIG_DEFAULT_SERVE_DEV_ENABLED"
     ;;
@@ -2347,6 +2369,9 @@ config_default_value() {
     ;;
   add.serve-dev.logging-path)
     printf '%s\n' "$CONFIG_DEFAULT_SERVE_DEV_LOGGING_PATH"
+    ;;
+  remove.pre-command)
+    printf '%s\n' "$CONFIG_DEFAULT_REMOVE_PRE_COMMAND"
     ;;
   *)
     return 1
@@ -2623,6 +2648,10 @@ init_settings_apply_from_sources() {
     SERVE_DEV_COMMAND="$value"
   fi
 
+  if value=$(config_get "add.post-command" 2> /dev/null); then
+    ADD_POST_COMMAND="$value"
+  fi
+
   if value=$(config_get "add.install-deps.enabled" 2> /dev/null); then
     if bool_val=$(parse_bool "$value" 2> /dev/null); then
       INSTALL_DEPS_ENABLED="$bool_val"
@@ -2662,6 +2691,10 @@ init_settings_apply_from_sources() {
     fi
   fi
 
+  if value=$(config_get "remove.pre-command" 2> /dev/null); then
+    REMOVE_PRE_COMMAND="$value"
+  fi
+
   return 0
 }
 
@@ -2675,6 +2708,8 @@ init_settings_defaults() {
   COPY_ENV_FILE_SELECTION=("${CONFIG_DEFAULT_COPY_ENV_FILES[@]}")
   INSTALL_DEPS_COMMAND="$CONFIG_DEFAULT_INSTALL_DEPS_COMMAND"
   SERVE_DEV_COMMAND="$CONFIG_DEFAULT_SERVE_DEV_COMMAND"
+  ADD_POST_COMMAND="$CONFIG_DEFAULT_ADD_POST_COMMAND"
+  REMOVE_PRE_COMMAND="$CONFIG_DEFAULT_REMOVE_PRE_COMMAND"
   WORKING_REPO_PATH_CONFIGURED=0
   LANGUAGE="$CONFIG_DEFAULT_LANGUAGE"
   LIST_THEME="$CONFIG_DEFAULT_THEME"
@@ -3405,6 +3440,42 @@ run_install_command() {
   (
     cd "$worktree_path" || exit
     sh -c "$command_line" >&2
+  )
+}
+
+run_configured_hook_command() {
+  local command_line="${1:-}"
+  local cwd="${2:-}"
+  local phase="${3:-hook}"
+  local worktree_name="${4:-}"
+  local worktree_path="${5:-}"
+  local worktree_branch="${6:-}"
+
+  if [ -z "$command_line" ]; then
+    return 0
+  fi
+
+  if ! command_exists_for_line "$command_line"; then
+    info "⚠️  $phase hook command not found: $command_line"
+    return 1
+  fi
+
+  if [ -z "$cwd" ] || [ ! -d "$cwd" ]; then
+    info "⚠️  $phase hook working directory missing: $cwd"
+    return 1
+  fi
+
+  info "⚙️  Running $phase hook: $command_line"
+
+  (
+    cd "$cwd" || exit 1
+    env \
+      WT_HOOK_PHASE="$phase" \
+      WT_PROJECT_ROOT="$PROJECT_DIR_ABS" \
+      WT_WORKTREE_NAME="$worktree_name" \
+      WT_WORKTREE_PATH="$worktree_path" \
+      WT_WORKTREE_BRANCH="$worktree_branch" \
+      sh -c "$command_line"
   )
 }
 
@@ -4913,6 +4984,10 @@ cmd_add() {
 
   if [ "$run_install" -eq 1 ]; then
     run_install_command "$worktree_path" "$install_command"
+  fi
+
+  if ! run_configured_hook_command "$ADD_POST_COMMAND" "$worktree_path" "add.post" "$name" "$worktree_path" "$branch"; then
+    die "add post-command failed"
   fi
 
   if [ "$run_dev" -eq 1 ]; then
