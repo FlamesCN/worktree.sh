@@ -716,7 +716,7 @@ cmd_shell_hook() {
     sed "s/__WT_BIN_PATH__/$wt_exec_path_escaped/g" << 'WT_HOOK'
 # wt shell integration: auto-cd after wt add/path/main/remove/clean
 wt() {
-  local __wt_out __wt_status __wt_cmd __wt_should_cd=0
+  local __wt_out __wt_status __wt_cmd __wt_should_cd=0 __wt_has_help=0 __wt_arg
   local __wt_bin="__WT_BIN_PATH__"
 
   if [ ! -x "$__wt_bin" ]; then
@@ -747,6 +747,15 @@ wt() {
     __wt_cmd="$1"
   fi
 
+  for __wt_arg in "$@"; do
+    case "$__wt_arg" in
+    help | -h | --help)
+      __wt_has_help=1
+      break
+      ;;
+    esac
+  done
+
   case "$__wt_cmd" in
     add|main|path)
       __wt_should_cd=1
@@ -764,6 +773,10 @@ wt() {
       __wt_should_cd=1
       ;;
   esac
+
+  if [ "$__wt_has_help" -eq 1 ]; then
+    __wt_should_cd=0
+  fi
 
   if [ $__wt_should_cd -eq 1 ] && [ -n "$__wt_out" ] && [ -d "$__wt_out" ]; then
     cd "$__wt_out" || return $?
