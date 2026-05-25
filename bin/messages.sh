@@ -23,13 +23,16 @@ msg_en() {
     printf '🚀 Starting dev command'
     ;;
   dev_started_port)
-    printf '✅ Dev command running on port %s' "$1"
+    printf '✅ Dev command is ready; port %s is listening' "$1"
     ;;
   dev_started_default)
     printf '✅ Dev command running'
     ;;
   dev_failed)
     printf '⚠️ Dev command may not have started correctly (PID: %s); check %s' "$1" "$2"
+    ;;
+  dev_timeout)
+    printf '⚠️ Dev command did not become ready on port %s within %s seconds; check %s' "$1" "$2" "$3"
     ;;
   dev_log_hint)
     printf '📝 Dev command log: tail -f %s' "$1"
@@ -1042,13 +1045,16 @@ msg_zh() {
     printf '🚀 正在启动开发命令'
     ;;
   dev_started_port)
-    printf '✅ 开发命令已在端口 %s 运行' "$1"
+    printf '✅ 开发命令已就绪，端口 %s 已开始监听' "$1"
     ;;
   dev_started_default)
     printf '✅ 开发命令已启动'
     ;;
   dev_failed)
     printf '⚠️ 开发命令进程可能未正确启动 (PID: %s)，请检查 %s' "$1" "$2"
+    ;;
+  dev_timeout)
+    printf '⚠️ 开发命令在 %s 秒内未能在端口 %s 就绪，请检查 %s' "$2" "$1" "$3"
     ;;
   dev_log_hint)
     printf '📝 开发命令日志：tail -f %s' "$1"

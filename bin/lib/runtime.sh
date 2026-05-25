@@ -3375,6 +3375,81 @@ command_exists_for_line() {
   return 1
 }
 
+port_is_listening() {
+  local port="${1:-}"
+  if [ -z "$port" ]; then
+    return 1
+  fi
+
+  case "$port" in
+  *[!0-9]*)
+    return 1
+    ;;
+  esac
+
+  if command -v lsof > /dev/null 2>&1; then
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN > /dev/null 2>&1
+    return $?
+  fi
+
+  (exec 3<> "/dev/tcp/127.0.0.1/$port") > /dev/null 2>&1
+}
+
+wait_for_dev_port() {
+  local port="${1:?port is required}"
+  local timeout_sec="${2:-60}"
+  local pid="${3:-}"
+  local exit_grace_sec="${4:-2}"
+  local waited=0
+  local dead_wait=0
+
+  while [ "$waited" -lt "$timeout_sec" ]; do
+    if port_is_listening "$port"; then
+      return 0
+    fi
+
+    if [ -n "$pid" ] && ! kill -0 "$pid" 2> /dev/null; then
+      dead_wait=$((dead_wait + 1))
+      if [ "$dead_wait" -ge "$exit_grace_sec" ]; then
+        return 1
+      fi
+    else
+      dead_wait=0
+    fi
+
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  return 2
+}
+
+wait_for_dev_settle() {
+  local port="${1:?port is required}"
+  local pid="${2:-}"
+  local timeout_sec="${3:-5}"
+  local waited=0
+
+  if [ -z "$pid" ]; then
+    return 0
+  fi
+
+  while [ "$waited" -lt "$timeout_sec" ]; do
+    if ! kill -0 "$pid" 2> /dev/null; then
+      return 0
+    fi
+
+    if ! port_is_listening "$port"; then
+      return 1
+    fi
+
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  return 0
+}
+
 node_lockfile_present() {
   local worktree_path="${1:?worktree path is required}"
   if [ -f "$worktree_path/package-lock.json" ] || [ -f "$worktree_path/npm-shrinkwrap.json" ]; then
@@ -4248,17 +4323,46 @@ start_dev_server() {
     pid=$(cat "$pid_file" 2> /dev/null || true)
   fi
 
-  sleep 1
+  if [ -n "$port" ]; then
+    local ready_timeout="${WT_DEV_READY_TIMEOUT:-60}"
+    local settle_timeout="${WT_DEV_SETTLE_TIMEOUT:-5}"
 
-  if [ -n "$pid" ] && kill -0 "$pid" 2> /dev/null; then
-    if [ -n "$port" ]; then
-      info "$(msg dev_started_port "$port")"
+    case "$ready_timeout" in
+    '' | *[!0-9]*)
+      ready_timeout=60
+      ;;
+    esac
+    case "$settle_timeout" in
+    '' | *[!0-9]*)
+      settle_timeout=5
+      ;;
+    esac
+
+    if wait_for_dev_port "$port" "$ready_timeout" "$pid"; then
+      if ! wait_for_dev_settle "$port" "$pid" "$settle_timeout"; then
+        local pid_display="${pid:-unknown}"
+        info "$(msg dev_failed "$pid_display" "$log_file")"
+      else
+        info "$(msg dev_started_port "$port")"
+      fi
     else
-      info "$(msg dev_started_default)"
+      local wait_status=$?
+      local pid_display="${pid:-unknown}"
+      if [ "$wait_status" -eq 1 ]; then
+        info "$(msg dev_failed "$pid_display" "$log_file")"
+      else
+        info "$(msg dev_timeout "$port" "$ready_timeout" "$log_file")"
+      fi
     fi
   else
-    local pid_display="${pid:-unknown}"
-    info "$(msg dev_failed "$pid_display" "$log_file")"
+    sleep 1
+
+    if [ -n "$pid" ] && kill -0 "$pid" 2> /dev/null; then
+      info "$(msg dev_started_default)"
+    else
+      local pid_display="${pid:-unknown}"
+      info "$(msg dev_failed "$pid_display" "$log_file")"
+    fi
   fi
 
   info "$(msg dev_log_hint "$log_file")"
