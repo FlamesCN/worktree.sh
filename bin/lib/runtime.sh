@@ -22,6 +22,8 @@ readonly CONFIG_DEFAULT_WORKING_REPO_PATH="${HOME}/Developer/your-project"
 readonly CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX="feat/"
 readonly CONFIG_DEFAULT_SERVE_DEV_LOGGING_PATH="tmp"
 readonly CONFIG_DEFAULT_SERVE_DEV_ENABLED=1
+readonly CONFIG_DEFAULT_SERVE_DEV_READY_TIMEOUT=60
+readonly CONFIG_DEFAULT_SERVE_DEV_SETTLE_TIMEOUT=5
 readonly CONFIG_DEFAULT_INSTALL_DEPS_ENABLED=1
 readonly CONFIG_DEFAULT_COPY_ENV_ENABLED=1
 readonly CONFIG_DEFAULT_INSTALL_DEPS_COMMAND=""
@@ -38,6 +40,8 @@ WORKTREE_NAME_PREFIX=""
 WORKTREE_BRANCH_PREFIX=""
 SERVE_DEV_LOGGING_PATH=""
 SERVE_DEV_ENABLED=0
+SERVE_DEV_READY_TIMEOUT=0
+SERVE_DEV_SETTLE_TIMEOUT=0
 INSTALL_DEPS_ENABLED=0
 COPY_ENV_ENABLED=0
 INSTALL_DEPS_COMMAND=""
@@ -2370,6 +2374,12 @@ config_default_value() {
   add.serve-dev.logging-path)
     printf '%s\n' "$CONFIG_DEFAULT_SERVE_DEV_LOGGING_PATH"
     ;;
+  add.serve-dev.ready-timeout)
+    printf '%s\n' "$CONFIG_DEFAULT_SERVE_DEV_READY_TIMEOUT"
+    ;;
+  add.serve-dev.settle-timeout)
+    printf '%s\n' "$CONFIG_DEFAULT_SERVE_DEV_SETTLE_TIMEOUT"
+    ;;
   remove.pre-command)
     printf '%s\n' "$CONFIG_DEFAULT_REMOVE_PRE_COMMAND"
     ;;
@@ -2648,6 +2658,14 @@ init_settings_apply_from_sources() {
     SERVE_DEV_COMMAND="$value"
   fi
 
+  if value=$(config_get "add.serve-dev.ready-timeout" 2> /dev/null); then
+    [ -n "$value" ] && SERVE_DEV_READY_TIMEOUT="$value"
+  fi
+
+  if value=$(config_get "add.serve-dev.settle-timeout" 2> /dev/null); then
+    [ -n "$value" ] && SERVE_DEV_SETTLE_TIMEOUT="$value"
+  fi
+
   if value=$(config_get "add.post-command" 2> /dev/null); then
     ADD_POST_COMMAND="$value"
   fi
@@ -2702,6 +2720,8 @@ init_settings_defaults() {
   WORKING_REPO_PATH="$CONFIG_DEFAULT_WORKING_REPO_PATH"
   SERVE_DEV_LOGGING_PATH="$CONFIG_DEFAULT_SERVE_DEV_LOGGING_PATH"
   SERVE_DEV_ENABLED="$CONFIG_DEFAULT_SERVE_DEV_ENABLED"
+  SERVE_DEV_READY_TIMEOUT="$CONFIG_DEFAULT_SERVE_DEV_READY_TIMEOUT"
+  SERVE_DEV_SETTLE_TIMEOUT="$CONFIG_DEFAULT_SERVE_DEV_SETTLE_TIMEOUT"
   INSTALL_DEPS_ENABLED="$CONFIG_DEFAULT_INSTALL_DEPS_ENABLED"
   COPY_ENV_ENABLED="$CONFIG_DEFAULT_COPY_ENV_ENABLED"
   WORKTREE_BRANCH_PREFIX="$CONFIG_DEFAULT_WORKTREE_ADD_BRANCH_PREFIX"
@@ -4324,17 +4344,25 @@ start_dev_server() {
   fi
 
   if [ -n "$port" ]; then
-    local ready_timeout="${WT_DEV_READY_TIMEOUT:-60}"
-    local settle_timeout="${WT_DEV_SETTLE_TIMEOUT:-5}"
+    local ready_timeout="$SERVE_DEV_READY_TIMEOUT"
+    local settle_timeout="$SERVE_DEV_SETTLE_TIMEOUT"
 
     case "$ready_timeout" in
     '' | *[!0-9]*)
-      ready_timeout=60
+      if [ -n "${WT_DEV_READY_TIMEOUT:-}" ] && [[ ! "${WT_DEV_READY_TIMEOUT:-}" =~ [^0-9] ]]; then
+        ready_timeout="${WT_DEV_READY_TIMEOUT}"
+      else
+        ready_timeout="$CONFIG_DEFAULT_SERVE_DEV_READY_TIMEOUT"
+      fi
       ;;
     esac
     case "$settle_timeout" in
     '' | *[!0-9]*)
-      settle_timeout=5
+      if [ -n "${WT_DEV_SETTLE_TIMEOUT:-}" ] && [[ ! "${WT_DEV_SETTLE_TIMEOUT:-}" =~ [^0-9] ]]; then
+        settle_timeout="${WT_DEV_SETTLE_TIMEOUT}"
+      else
+        settle_timeout="$CONFIG_DEFAULT_SERVE_DEV_SETTLE_TIMEOUT"
+      fi
       ;;
     esac
 
@@ -5116,6 +5144,8 @@ cmd_add() {
 config_print_effective() {
   local has_language_line=0
   local has_theme_line=0
+  local has_serve_ready_timeout_line=0
+  local has_serve_settle_timeout_line=0
 
   if [ -f "$CONFIG_FILE" ]; then
     if [ -s "$CONFIG_FILE" ]; then
@@ -5124,6 +5154,12 @@ config_print_effective() {
       fi
       if grep -q '^theme=' "$CONFIG_FILE" 2> /dev/null; then
         has_theme_line=1
+      fi
+      if grep -q '^add\.serve-dev\.ready-timeout=' "$CONFIG_FILE" 2> /dev/null; then
+        has_serve_ready_timeout_line=1
+      fi
+      if grep -q '^add\.serve-dev\.settle-timeout=' "$CONFIG_FILE" 2> /dev/null; then
+        has_serve_settle_timeout_line=1
       fi
       cat "$CONFIG_FILE"
     else
@@ -5158,6 +5194,28 @@ config_print_effective() {
     printf 'theme=%s\n' "$effective_theme"
   fi
 
+  local effective_ready_timeout
+  if effective_ready_timeout=$(config_get_or_default "add.serve-dev.ready-timeout" 2> /dev/null); then
+    :
+  else
+    effective_ready_timeout="$CONFIG_DEFAULT_SERVE_DEV_READY_TIMEOUT"
+  fi
+
+  if [ "$has_serve_ready_timeout_line" -eq 0 ]; then
+    printf 'add.serve-dev.ready-timeout=%s\n' "$effective_ready_timeout"
+  fi
+
+  local effective_settle_timeout
+  if effective_settle_timeout=$(config_get_or_default "add.serve-dev.settle-timeout" 2> /dev/null); then
+    :
+  else
+    effective_settle_timeout="$CONFIG_DEFAULT_SERVE_DEV_SETTLE_TIMEOUT"
+  fi
+
+  if [ "$has_serve_settle_timeout_line" -eq 0 ]; then
+    printf 'add.serve-dev.settle-timeout=%s\n' "$effective_settle_timeout"
+  fi
+
   return 0
 }
 
@@ -5189,6 +5247,8 @@ wt config - 查看或更新 worktree.sh 配置
   add.serve-dev.enabled           是否在 wt add 后启动开发服务
   add.serve-dev.command           启动开发服务的命令（留空则自动推断）
   add.serve-dev.logging-path      Dev 服务日志所在子目录（默认: tmp）
+  add.serve-dev.ready-timeout     等待端口开始监听的秒数（默认: 60）
+  add.serve-dev.settle-timeout    端口就绪后继续观察的秒数（默认: 5，用于兼容短命启动脚本）
   theme                           wt list 的显示主题（box 或 sage，默认 box，可用 "wt theme" 切换）
 
 语言与主题:
@@ -5221,6 +5281,8 @@ Supported keys:
   add.serve-dev.enabled           Whether wt add starts the dev service
   add.serve-dev.command           Command used to start the dev service (empty = auto-detect)
   add.serve-dev.logging-path      Subdirectory for dev logs (default: tmp)
+  add.serve-dev.ready-timeout     Seconds to wait for the dev port to start listening (default: 60)
+  add.serve-dev.settle-timeout    Extra seconds to observe the port after readiness (default: 5; useful for short-lived launcher scripts)
   theme                           Theme for wt list output (box or sage; default box). Use "wt theme" to change.
 
 Language & theme:

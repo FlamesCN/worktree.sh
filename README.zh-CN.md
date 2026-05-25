@@ -133,6 +133,12 @@ wt sync 3000 3001
 # 禁用自动开发服务器
 wt config set add.serve-dev.enabled false
 
+# 启动脚本较慢时，延长端口就绪等待时间
+wt config set add.serve-dev.ready-timeout 120
+
+# 对启动器脚本保留一个短暂的就绪后观察窗口
+wt config set add.serve-dev.settle-timeout 8
+
 # 更改分支前缀
 wt config set add.branch-prefix "feature/"
 
@@ -141,6 +147,9 @@ wt config list
 ```
 
 配置按项目存储在 `~/.worktree.sh/projects/<slug>/config.kv` 中。
+
+- `add.serve-dev.ready-timeout` 控制 `wt add` 等待目标端口开始监听的最长秒数。
+- `add.serve-dev.settle-timeout` 会在端口就绪后再短暂观察一段时间，避免 `start-smart.sh` 这类包装启动脚本被误判为失败。
 
 ## 使用场景
 

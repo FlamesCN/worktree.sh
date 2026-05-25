@@ -133,6 +133,12 @@ wt sync 3000 3001
 # Disable auto dev server
 wt config set add.serve-dev.enabled false
 
+# Wait longer for a slow startup script before reporting success
+wt config set add.serve-dev.ready-timeout 120
+
+# Keep a short post-ready observation window for launcher scripts
+wt config set add.serve-dev.settle-timeout 8
+
 # Change branch prefix
 wt config set add.branch-prefix "feature/"
 
@@ -141,6 +147,9 @@ wt config list
 ```
 
 Configuration is stored per-project in `~/.worktree.sh/projects/<slug>/config.kv`.
+
+- `add.serve-dev.ready-timeout` controls how long `wt add` waits for the inferred port to start listening.
+- `add.serve-dev.settle-timeout` keeps watching briefly after readiness so wrapper scripts like `start-smart.sh` can exit without causing a false failure.
 
 ## Use Cases
 
